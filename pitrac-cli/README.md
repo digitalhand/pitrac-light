@@ -96,6 +96,11 @@ What they do:
 - `env setup`: generates env file and updates shell profile (`~/.bashrc` by default)
 - `env validate`: confirms required PiTrac vars are present and shell sourcing is configured
 
+To reset/remove environment configuration (useful when switching repos or fixing incorrect paths):
+```bash
+pitrac-cli env reset
+```
+
 ## Command Reference
 
 ### Top-level Commands
@@ -133,6 +138,7 @@ Manage env file generation, display, and shell integration.
 ```bash
 pitrac-cli env setup [--force] [--pitrac-root <path>] [--env-file <path>] [--shell-file <path>]
 pitrac-cli env validate [--env-file <path>] [--shell-file <path>]
+pitrac-cli env reset [--yes] [--shell-file <path>] [--keep-dirs]
 pitrac-cli env init [--force] [--pitrac-root <path>] [--env-file <path>]
 pitrac-cli env show [--env-file <path>]
 pitrac-cli env apply [--env-file <path>] [--shell-file <path>]

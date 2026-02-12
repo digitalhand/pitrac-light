@@ -9,7 +9,7 @@
 #include <boost/thread/mutex.hpp>
 
 
-#include "logging_tools.h"
+#include "utils/logging_tools.h"
 #include "golf_ball.h"
 #include "gs_results.h"
 

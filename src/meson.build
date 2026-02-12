@@ -14,33 +14,35 @@ project('pitrac_lm', 'c', 'cpp',
     ],
     license : 'LGPL 2.1+')
 
+# Warning suppressions - these should be addressed over time
+# TODO: Fix underlying issues and remove these suppressions
 add_global_arguments('-Wno-deprecated-enum-enum-conversion', language : 'cpp')
 add_global_arguments('-Wno-deprecated-declarations', language : 'cpp')
 add_global_arguments('-Wno-comment', language : 'cpp')
 add_global_arguments('-Wno-unused', language : 'cpp')
-add_global_arguments('-Wno-error', language : 'cpp')
-add_global_arguments('-D_FILE_OFFSET_BITS=64', language : 'cpp')
+
+# Required definitions
+add_global_arguments('-D_FILE_OFFSET_BITS=64', language : 'cpp')  # Support for large files
 add_global_arguments('-DLIBCXX_ENABLE_INCOMPLETE_FEATURES=ON', language : 'cpp')
+
+# Boost configuration
 add_global_arguments('-DBOOST_LOG_DYN_LINK', language : 'cpp')
 add_global_arguments('-DBOOST_BIND_GLOBAL_PLACEHOLDERS', language : 'cpp')
-# Enable XNNPACK execution provider for ONNX Runtime
-add_global_arguments('-DUSE_XNNPACK', language : 'cpp')
+
+# ONNX Runtime configuration
+add_global_arguments('-DUSE_XNNPACK', language : 'cpp')  # Enable XNNPACK execution provider
 
 
 fs = import('fs')
 python = import('python')
 py3 = python.find_installation()
 
-# TBD FIX - The following may be redundant of the above options
-cpp_arguments = ['-pedantic', '-Wno-unused-parameter', '-faligned-new', '-DBOOST_LOG_DYN_LINK', '-Wno-error', '-Wno-deprecated-enum-enum-conversion', '-Wno-decprecated-declarations']
-
-# Needed for file sizes > 32-bits.
-cpp_arguments += '-D_FILE_OFFSET_BITS=64'
-
 # We need a relatively recent version of gcc that will support c++20
 
 cxx = meson.get_compiler('cpp')
 cpu = host_machine.cpu()
+
+cpp_arguments = []
 
 if cxx.get_id() == 'gcc'
     cpp_arguments += '-Wno-psabi'
@@ -91,12 +93,14 @@ pitrac_lm_module_deps = [
 
 
 
+subdir('utils')
 subdir('core')
 subdir('encoder')
 subdir('image')
 subdir('output')
 subdir('preview')
 subdir('post_processing_stages')
+subdir('tests')
 
 
 # Generate a version string.
@@ -162,7 +166,6 @@ vision_sources = [
     'ball_image_proc.cpp',
     'onnx_runtime_detector.cpp',
     'colorsys.cpp',
-    'cv_utils.cpp',
     'golf_ball.cpp',
 ]
 
@@ -180,7 +183,6 @@ core_sources = [
     'gs_options.cpp',
     'gs_config.cpp',
     'configuration_manager.cpp',
-    'logging_tools.cpp',
     'gs_events.cpp',
     'worker_thread.cpp',
     'camera_hardware.cpp',
@@ -225,6 +227,6 @@ exec = executable('pitrac_lm',
 	pitrac_lm_sources,
 	include_directories : pitrac_lm_include_dirs,
 	install : true,
-        link_with : [core_lib, vision_lib, sim_lib],
+        link_with : [core_lib, vision_lib, sim_lib, utils_lib],
 	dependencies : pitrac_lm_module_deps
 	)

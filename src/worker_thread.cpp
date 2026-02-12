@@ -7,7 +7,7 @@
 #include <iostream>
 #include <algorithm>
 
-#include "logging_tools.h"
+#include "utils/logging_tools.h"
 #include "gs_globals.h"
 
 namespace golf_sim {

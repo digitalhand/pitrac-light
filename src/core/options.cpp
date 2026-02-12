@@ -18,7 +18,7 @@
 #include <libcamera/formats.h>
 #include <libcamera/logging.h>
 #include <libcamera/property_ids.h>
-#include "logging_tools.h"
+#include "utils/logging_tools.h"
 
 #include "core/options.hpp"
 

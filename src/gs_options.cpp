@@ -6,7 +6,7 @@
  // The LM's command-line processing module.
 
 #include "gs_options.h"
-#include "logging_tools.h"
+#include "utils/logging_tools.h"
 
 namespace golf_sim {
 

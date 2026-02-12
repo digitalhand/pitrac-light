@@ -3,8 +3,8 @@
  * Copyright (C) 2022-2025, Verdant Consultants, LLC.
  */
 
-#include "logging_tools.h"
-#include "cv_utils.h"
+#include "utils/logging_tools.h"
+#include "utils/cv_utils.h"
 #include "gs_options.h"
 #include "gs_config.h"
 

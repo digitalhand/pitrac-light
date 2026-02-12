@@ -20,7 +20,7 @@
 #include <opencv2/imgproc.hpp>
 #include <opencv2/opencv.hpp>
 
-#include "logging_tools.h"
+#include "utils/logging_tools.h"
 
 
 // The primary object for control-type communications from the Golf Sim user interface

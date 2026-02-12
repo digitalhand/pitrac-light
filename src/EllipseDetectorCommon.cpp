@@ -13,7 +13,7 @@ http://dx.doi.org/10.1016/j.patcog.2014.05.012.
 */
 
 #include "EllipseDetectorCommon.h"
-#include "logging_tools.h"
+#include "utils/logging_tools.h"
 #include <opencv2/core/core_c.h>
 #include <opencv2/core/types_c.h>
 #include <opencv2/core/traits.hpp>

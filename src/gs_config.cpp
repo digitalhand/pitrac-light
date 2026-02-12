@@ -11,7 +11,7 @@
 #include <fstream>
 #include <string>
 #include <sstream>
-#include "logging_tools.h"
+#include "utils/logging_tools.h"
 #include "gs_camera.h"
 #include "gs_ui_system.h"
 #include "gs_config.h"

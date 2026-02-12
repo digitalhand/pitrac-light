@@ -13,7 +13,7 @@ http://dx.doi.org/10.1016/j.patcog.2014.05.012.
 */
 
 #include "EllipseDetectorYaed.h"
-#include "logging_tools.h"
+#include "utils/logging_tools.h"
 
 namespace golf_sim {
 

@@ -32,7 +32,7 @@
 #include "gs_config.h"
 #include "gs_camera.h"
 #include "libcamera_interface.h"
-#include "logging_tools.h"
+#include "utils/logging_tools.h"
 #include "ball_watcher.h"
 #include "pulse_strobe.h"
 #include "core/rpicam_app.hpp"

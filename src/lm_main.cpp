@@ -25,10 +25,10 @@
 #include "gs_results.h"
 #include "gs_camera.h"
 
-#include "logging_tools.h"
+#include "utils/logging_tools.h"
 #include "colorsys.h"
 #include "ball_image_proc.h"
-#include "cv_utils.h"
+#include "utils/cv_utils.h"
 #include "gs_camera.h"
 #include "gs_config.h"
 #include "pulse_strobe.h"

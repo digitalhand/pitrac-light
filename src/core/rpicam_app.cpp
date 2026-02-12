@@ -24,7 +24,7 @@
 #include <libcamera/base/shared_fd.h>
 #include <libcamera/orientation.h>
 
-#include "logging_tools.h"
+#include "utils/logging_tools.h"
 
 
 unsigned int RPiCamApp::verbosity = 1;

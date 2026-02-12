@@ -37,7 +37,7 @@
 #include "camera_hardware.h"
 #include "gs_options.h"
 #include "gs_config.h"
-#include "logging_tools.h"
+#include "utils/logging_tools.h"
 
 #include <libcamera/logging.h>
 #include "motion_detect.h"

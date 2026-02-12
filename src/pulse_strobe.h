@@ -11,7 +11,7 @@
 
 #include <vector>
 
-#include "logging_tools.h"
+#include "utils/logging_tools.h"
 
 
 namespace golf_sim {

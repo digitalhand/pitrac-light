@@ -13,7 +13,7 @@
 #include <cms/TextMessage.h>
 #include <opencv2/core.hpp>
 
-#include "logging_tools.h"
+#include "utils/logging_tools.h"
 
 #include "gs_ipc_mat.h"
 #include "gs_ipc_result.h"

@@ -12,7 +12,7 @@
 #include <boost/bind/bind.hpp>
 #include <boost/enable_shared_from_this.hpp>
 
-#include "logging_tools.h"
+#include "utils/logging_tools.h"
 #include "gs_options.h"
 #include "gs_config.h"
 #include "gs_events.h"

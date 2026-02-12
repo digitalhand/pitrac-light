@@ -4,7 +4,7 @@
  */
 
 #include "configuration_manager.h"
-#include "logging_tools.h"
+#include "utils/logging_tools.h"
 #include <filesystem>
 #include <fstream>
 #include <regex>

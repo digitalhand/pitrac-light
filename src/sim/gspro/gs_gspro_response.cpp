@@ -6,7 +6,7 @@
 #include <boost/program_options.hpp>
 #include <boost/property_tree/json_parser.hpp>
 
-#include "logging_tools.h"
+#include "utils/logging_tools.h"
 
 #include "gs_gspro_response.h"
 

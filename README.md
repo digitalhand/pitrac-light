@@ -299,9 +299,118 @@ meson setup build --buildtype=release --prefix=/opt/pitrac
 
 ## Testing
 
-- `meson test -C build/debug --print-errorlogs` runs unit and approval tests.
-- `src/Testing/` contains golden images and CSVs; keep them up to date when algorithm changes affect output.
-- For approval testing in `ImageAnalysis`, the tests emit differences to `tests/approval_artifacts/`—verify and approve as needed.
+PiTrac uses **Boost.Test** framework with comprehensive test infrastructure covering unit, integration, and approval tests.
+
+### Quick Start
+
+```bash
+# Build with tests
+cd src
+meson setup build --buildtype=release
+ninja -C build
+
+# Run all tests
+meson test -C build --print-errorlogs
+
+# Run specific test suites
+meson test -C build --suite unit          # Unit tests only
+meson test -C build --suite integration   # Integration tests
+meson test -C build --suite approval      # Approval/regression tests
+```
+
+### Test Organization
+
+| Directory | Purpose | Framework |
+|-----------|---------|-----------|
+| `src/tests/unit/` | Fast, isolated unit tests | Boost.Test + Meson |
+| `src/tests/integration/` | Multi-module integration tests | Boost.Test + Meson |
+| `src/tests/approval/` | Regression tests with golden baselines | Boost.Test + Custom |
+| `src/Camera/tests/` | Camera bounded context tests | Boost.Test + CMake |
+| `src/ImageAnalysis/tests/` | Image analysis bounded context tests | Boost.Test + CMake |
+
+### Running Bounded Context Tests
+
+**Camera Module:**
+```bash
+cmake -S src/Camera -B src/Camera/build
+cmake --build src/Camera/build
+ctest --test-dir src/Camera/build --output-on-failure
+```
+
+**ImageAnalysis Module:**
+```bash
+cmake -S src/ImageAnalysis -B src/ImageAnalysis/build \
+    -DOPENCV_DIR=/path/to/opencv -DBOOST_ROOT=/path/to/boost
+cmake --build src/ImageAnalysis/build
+ctest --test-dir src/ImageAnalysis/build --output-on-failure
+```
+
+### Coverage Reporting
+
+```bash
+# Enable coverage
+meson configure src/build -Db_coverage=true
+meson compile -C src/build
+
+# Run tests
+meson test -C src/build
+
+# Generate HTML report
+ninja -C src/build coverage-html
+firefox src/build/meson-logs/coveragereport/index.html
+```
+
+### Pre-Commit Testing
+
+Install the pre-commit hook to run tests before each commit:
+
+```bash
+# Install hook
+cp hooks/pre-commit .git/hooks/pre-commit
+chmod +x .git/hooks/pre-commit
+
+# Or manually run
+./hooks/pre-commit
+```
+
+### Approval Testing
+
+Approval tests capture "golden" reference outputs. When algorithm behavior changes:
+
+1. Run tests: `meson test -C src/build --suite approval`
+2. Review differences in `test_data/approval_artifacts/`
+3. If changes are intentional, copy `.received.*` → `.approved.*`
+4. Commit updated baselines with explanation
+
+**⚠️ Never update baselines without careful review!**
+
+### Documentation
+
+- **Test Infrastructure:** [`src/tests/README.md`](src/tests/README.md) - Comprehensive testing guide
+- **Build System:** [`BUILD_SYSTEM.md`](BUILD_SYSTEM.md) - Build and test workflows
+- **Test Utilities:** [`src/tests/test_utilities.hpp`](src/tests/test_utilities.hpp) - Shared fixtures and helpers
+
+### CI/CD Integration
+
+Tests run automatically on:
+- ✅ Pre-commit (via git hook)
+- ✅ Pull requests (GitHub Actions)
+- ✅ Main branch commits (GitHub Actions)
+
+See [`.github/workflows/ci.yml`](.github/workflows/ci.yml) for CI configuration.
+
+### Coverage Goals
+
+| Phase | Target | Status |
+|-------|--------|--------|
+| Phase 2 (Current) | 25% | 🟡 In Progress |
+| Phase 4 (Future) | 45% | ⏳ Planned |
+
+### Known Testing Limitations
+
+- Legacy `src/Testing/` directory contains older golden images and CSVs - being migrated to approval test framework
+- Main build tests are new (Phase 2) - coverage increasing incrementally
+- Some critical paths (ball detection, FSM) need more test coverage - see [CONFIG_MIGRATION_AUDIT.md](CONFIG_MIGRATION_AUDIT.md)
 
 ## IDE Support
 

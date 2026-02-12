@@ -11,14 +11,16 @@ Same C++ code base as https://github.com/PiTracLM/PiTrac. However, this project 
 - [Repository Layout](#repository-layout)
 - [Contributor Guide](#contributor-guide)
 - [Getting Started](#getting-started)
-  - [Step 1 — Install the CLI](#step-1--install-the-cli)
+  - [Step 1 — Download pitrac-cli](#step-1--download-pitrac-cli)
   - [Step 2 — Pre-flight Check](#step-2--pre-flight-check)
   - [Step 3 — Install Dependencies](#step-3--install-dependencies)
   - [Step 4 — Environment Setup](#step-4--environment-setup)
   - [Step 5 — Configure Runtime](#step-5--configure-runtime)
-  - [Step 6 — Build PiTrac](#step-6--build-pitrac)
+  - [Step 6 — Download PiTrac-Light Release](#step-6--download-pitrac-light-release)
   - [Step 7 — Validate Everything](#step-7--validate-everything)
   - [Step 8 — Run PiTrac](#step-8--run-pitrac)
+  - [Optional Developers — Install CLI from Source](#optional-developers--install-cli-from-source)
+  - [Optional Developers — Build PiTrac from Source](#optional-developers--build-pitrac-from-source)
 - [Meson Build Options](#meson-build-options)
 - [Testing](#testing)
 - [IDE Support](#ide-support)
@@ -46,17 +48,18 @@ go version
 
 Use Go `1.21+` (the CLI module target is `go 1.21`). If `go version` prints anything below `1.21`, install a newer Go toolchain before continuing.
 
-Direct download for `v0.1.0`:
+Download the latest `pitrac-cli_*_linux_arm64.zip` from:
+
+[https://github.com/digitalhand/pitrac-light/releases](https://github.com/digitalhand/pitrac-light/releases)
+
+Then install:
 
 ```bash
-wget -O /tmp/pitrac-cli_0.1.0_linux_arm64.zip \
-  "https://github.com/digitalhand/pitrac-light/releases/download/pitrac-cli%2Fv0.1.0/pitrac-cli_0.1.0_linux_arm64.zip"
-unzip -o /tmp/pitrac-cli_0.1.0_linux_arm64.zip -d /tmp
+cd /tmp
+unzip -o pitrac-cli_*_linux_arm64.zip
 sudo install -m 0755 /tmp/pitrac-cli /usr/local/bin/pitrac-cli
 pitrac-cli --help
 ```
-
-The URL path is correct for this repository because the release tag includes slashes (`pitrac-cli/v0.1.0`), which appear URL-encoded as `%2F` in the download link.
 
 ## Repository Layout
 
@@ -76,30 +79,24 @@ Contributor expectations and workflow standards are documented in `AGENTS.md`.
 
 ## Getting Started
 
-Follow these eight steps, in order, to go from a fresh clone to a running PiTrac system.
+Follow these eight steps, in order, to go from a fresh setup to a running PiTrac system.
 
-### Step 1 — Install the CLI
+### Step 1 — Download pitrac-cli
 
-Install the `pitrac-cli` tool which automates the remaining steps:
+Download the latest `pitrac-cli` release from:
 
-```bash
-go install github.com/digitalhand/pitrac-light/pitrac-cli@latest
-```
+[https://github.com/digitalhand/pitrac-light/releases](https://github.com/digitalhand/pitrac-light/releases)
 
-Make sure the Go bin directory is on your `PATH`:
+After downloading `pitrac-cli_*_linux_arm64.zip` to `/tmp`, install it:
 
 ```bash
-echo 'export PATH="$PATH:$(go env GOPATH)/bin"' >> ~/.bashrc
-source ~/.bashrc
+cd /tmp
+unzip -o pitrac-cli_*_linux_arm64.zip
+sudo install -m 0755 pitrac-cli /usr/local/bin/pitrac-cli
+pitrac-cli --help
 ```
 
-Alternatively, build from source:
-
-```bash
-cd pitrac-cli
-go build -o pitrac-cli .
-sudo mv pitrac-cli /usr/local/bin/
-```
+This is the same releases page used in Step 6.
 
 ### Step 2 — Pre-flight Check
 
@@ -151,6 +148,13 @@ pitrac-cli env setup --force
 source ~/.bashrc
 ```
 
+If you already know your final release directory, pass it explicitly:
+
+```bash
+pitrac-cli env setup --force --pitrac-root /path/to/pitrac-light
+source ~/.bashrc
+```
+
 This creates `~/.pitrac/config/pitrac.env` with the following variables:
 
 | Variable | Default |
@@ -173,31 +177,21 @@ pitrac-cli config init
 
 This places the config at `~/.pitrac/config/golf_sim_config.json`. Pass `--force` to overwrite an existing copy.
 
-### Step 6 — Build PiTrac
+### Step 6 — Download PiTrac-Light Release
 
-Build using the CLI:
+Download the latest `pitrac-light` release bundle from:
 
-```bash
-pitrac-cli build
-```
+[https://github.com/digitalhand/pitrac-light/releases](https://github.com/digitalhand/pitrac-light/releases)
 
-Or with options:
+After downloading `pitrac-light_*_linux_arm64.zip`, extract it and point `PITRAC_ROOT` to the extracted folder:
 
 ```bash
-pitrac-cli build --type release --jobs 4 --test   # build + run tests
-pitrac-cli build --clean                           # wipe build dir first
-pitrac-cli build --dry-run                         # preview commands
+mkdir -p ~/pitrac-releases
+unzip -o pitrac-light_*_linux_arm64.zip -d ~/pitrac-releases
+cd ~/pitrac-releases/pitrac-light_*_linux_arm64
+pitrac-cli env setup --force --pitrac-root "$PWD"
+source ~/.bashrc
 ```
-
-Manual build (equivalent):
-
-```bash
-cd src
-meson setup build --buildtype=release --prefix=/opt/pitrac
-ninja -C build -j4
-```
-
-PiTrac targets Raspberry Pi 5 hardware exclusively; Pi 4 builds are no longer supported. See [Meson Build Options](#meson-build-options) for hardware-specific flags.
 
 ### Step 7 — Validate Everything
 
@@ -249,6 +243,45 @@ src/build/pitrac_lm --system_mode camera1 --config_file src/golf_sim_config.json
 ```
 
 See [pitrac-cli/README.md](pitrac-cli/README.md) for the full CLI reference.
+
+### Optional Developers — Install CLI from Source
+
+If you are developing locally and want to build the CLI yourself:
+
+```bash
+cd pitrac-cli
+go mod tidy
+go build -o pitrac-cli .
+sudo install -m 0755 pitrac-cli /usr/local/bin/pitrac-cli
+```
+
+Note: the CLI source directory is now `pitrac-cli/` at repo root (not `cmd/pitrac-cli/`).
+
+### Optional Developers — Build PiTrac from Source
+
+Build using the CLI:
+
+```bash
+pitrac-cli build
+```
+
+Or with options:
+
+```bash
+pitrac-cli build --type release --jobs 4 --test   # build + run tests
+pitrac-cli build --clean                           # wipe build dir first
+pitrac-cli build --dry-run                         # preview commands
+```
+
+Manual build (equivalent):
+
+```bash
+cd src
+meson setup build --buildtype=release --prefix=/opt/pitrac
+ninja -C build -j4
+```
+
+PiTrac targets Raspberry Pi 5 hardware exclusively; Pi 4 builds are no longer supported. See [Meson Build Options](#meson-build-options) for hardware-specific flags.
 
 ## Meson Build Options
 

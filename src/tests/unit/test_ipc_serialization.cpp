@@ -13,6 +13,7 @@
 
 #define BOOST_TEST_MODULE IPCSerializationTests
 #include <boost/test/unit_test.hpp>
+#include <thread>
 #include "../test_utilities.hpp"
 #include "gs_ipc_message.h"
 #include "gs_ipc_control_msg.h"

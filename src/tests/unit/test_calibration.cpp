@@ -14,6 +14,7 @@
 #define BOOST_TEST_MODULE CalibrationTests
 #include <boost/test/unit_test.hpp>
 #include "../test_utilities.hpp"
+#include "gs_camera.h"
 #include "gs_calibration.h"
 #include "utils/cv_utils.h"
 

@@ -95,12 +95,12 @@ def _fallback(base_version: str, dist_sha: str) -> str:
 
 
 def main() -> int:
-    base_version = sys.argv[1] if len(sys.argv) > 1 else "0.0.1"
+    base_version = sys.argv[1] if len(sys.argv) > 1 else "0.1.0"
     dist_sha = sys.argv[2] if len(sys.argv) > 2 else ""
 
     if not SEMVER_RE.match(base_version):
         # Keep behavior deterministic if an invalid base version is passed in.
-        base_version = "0.0.1"
+        base_version = "0.1.0"
 
     resolved = _from_git(base_version)
     if resolved is None:

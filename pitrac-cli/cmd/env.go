@@ -252,7 +252,7 @@ func resolvePitracRootValue(input string) string {
 	if err == nil {
 		return detected
 	}
-	return "/path/to/PiTracLight"
+	return "/path/to/pitrac-light"
 }
 
 func writeDefaultEnvFile(home, envFile, pitracRoot string, force bool) (string, string, error) {

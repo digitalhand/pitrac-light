@@ -40,7 +40,7 @@ A Go-based command line tool for PiTrac installation, environment setup, and run
 Preferred Go install location is your Go binary path (`$GOBIN` or `$GOPATH/bin`).
 
 ```bash
-go install github.com/jeshernandez/PiTracLight/cmd/pitrac-cli@latest
+go install github.com/digitalhand/pitrac-light/pitrac-cli@latest
 ```
 
 Ensure Go bin path is on `PATH`:
@@ -51,7 +51,7 @@ source ~/.bashrc
 ```
 
 ## Build from Source
-From this folder (`cmd/pitrac-cli`):
+From this folder (`pitrac-cli`):
 
 ```bash
 go mod tidy
@@ -153,7 +153,7 @@ Default env file path:
 - `~/.pitrac/config/pitrac.env`
 
 `env init` default values:
-- `PITRAC_ROOT`: auto-detected repo root (or `/path/to/PiTracLight` fallback)
+- `PITRAC_ROOT`: auto-detected repo root (or `/path/to/pitrac-light` fallback)
 - `PITRAC_MSG_BROKER_FULL_ADDRESS`: `tcp://127.0.0.1:61616`
 - `PITRAC_WEBSERVER_SHARE_DIR`: `$HOME/LM_Shares/Images/`
 - `PITRAC_BASE_IMAGE_LOGGING_DIR`: `$HOME/PiTracLogs`

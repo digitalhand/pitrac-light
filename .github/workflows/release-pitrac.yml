@@ -1,4 +1,4 @@
-name: Release PiTrac Core
+name: Release pitrac-light
 
 on:
   push:
@@ -21,7 +21,7 @@ permissions:
 
 jobs:
   release:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, ARM64, pitrac]
 
     steps:
       - name: Checkout
@@ -37,7 +37,7 @@ jobs:
 
           if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
             version="${{ inputs.version }}"
-            version="${version#pitrac/}"
+            [[ "${version}" == */* ]] && version="${version##*/}"
             [[ "${version}" == v* ]] || version="v${version}"
             tag="pitrac/${version}"
             prerelease="${{ inputs.prerelease }}"
@@ -51,47 +51,65 @@ jobs:
           echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
           echo "version=${version}" >> "${GITHUB_OUTPUT}"
           echo "version_no_v=${version#v}" >> "${GITHUB_OUTPUT}"
-          echo "release_name=PiTrac Core ${version}" >> "${GITHUB_OUTPUT}"
+          echo "release_name=pitrac-light ${version}" >> "${GITHUB_OUTPUT}"
           echo "prerelease=${prerelease}" >> "${GITHUB_OUTPUT}"
 
-      - name: Build source bundles
+      - name: Build PiTrac binary
         shell: bash
         run: |
           set -euo pipefail
 
+          cd src
+          rm -rf build
+          meson setup build --buildtype=release --prefix=/opt/pitrac
+          ninja -C build -j"$(nproc)"
+
+          test -x build/pitrac_lm
+
+      - name: Build release zip bundle
+        id: bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          rm -rf dist
           mkdir -p dist
 
-          base_name="pitrac-core_${{ steps.meta.outputs.version_no_v }}"
+          base_name="pitrac-light_${{ steps.meta.outputs.version_no_v }}_linux_arm64"
+          bundle_root="dist/${base_name}"
+          zip_path="dist/${base_name}.zip"
 
+          mkdir -p "${bundle_root}"
           git archive \
-            --format=tar.gz \
-            --prefix="${base_name}/" \
-            -o "dist/${base_name}_source.tar.gz" \
+            --format=tar \
             HEAD \
-            src assets README.md LICENSE AGENTS.md
+            src assets README.md LICENSE \
+            | tar -xf - -C "${bundle_root}"
 
-          git archive \
-            --format=zip \
-            --prefix="${base_name}/" \
-            -o "dist/${base_name}_source.zip" \
-            HEAD \
-            src assets README.md LICENSE AGENTS.md
+          rm -rf "${bundle_root}/src/build"
+          cp -a src/build "${bundle_root}/src/build"
 
-          cat > "dist/BUILDING.md" <<'EON'
-          PiTrac Core source bundle
+          test -x "${bundle_root}/src/build/pitrac_lm"
 
-          Build steps:
-          1. cd src
-          2. meson setup build --buildtype=release --prefix=/opt/pitrac
-          3. ninja -C build -j4
-          EON
+          cat > "${bundle_root}/BUILD_INFO.txt" <<EOF
+          project: pitrac-light
+          version: ${{ steps.meta.outputs.version }}
+          commit: ${{ github.sha }}
+          platform: linux/arm64
+          layout: repository-with-built-src-build
+          EOF
 
           (
             cd dist
-            sha256sum *.tar.gz *.zip BUILDING.md > checksums.txt
+            zip -qr "${base_name}.zip" "${base_name}"
+            rm -rf "${base_name}"
           )
 
+          echo "zip_path=${zip_path}" >> "${GITHUB_OUTPUT}"
+
       - name: Publish GitHub Release
+        id: publish
+        continue-on-error: true
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.meta.outputs.tag }}
@@ -99,8 +117,4 @@ jobs:
           name: ${{ steps.meta.outputs.release_name }}
           prerelease: ${{ steps.meta.outputs.prerelease == 'true' }}
           generate_release_notes: true
-          files: |
-            dist/*.tar.gz
-            dist/*.zip
-            dist/BUILDING.md
-            dist/checksums.txt
+          files: ${{ steps.bundle.outputs.zip_path }}

@@ -104,7 +104,6 @@ subdir('image')
 subdir('output')
 subdir('preview')
 subdir('post_processing_stages')
-subdir('tests')
 
 
 # Generate a version string.
@@ -219,6 +218,9 @@ core_lib = static_library('core',
     core_sources,
     include_directories : pitrac_lm_include_dirs,
     dependencies : pitrac_lm_module_deps)
+
+# Now that libraries are defined, we can build tests that link against them
+subdir('tests')
 
 pitrac_lm_sources += ['lm_main.cpp']
 

@@ -188,7 +188,10 @@ BOOST_AUTO_TEST_CASE(MessageOrdering_Timestamps_AreMonotonic) {
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
     auto t2 = std::chrono::steady_clock::now();
 
-    BOOST_CHECK_LT(t1, t2);
+    // Convert to durations for comparison (Boost.Test can't print time_point)
+    auto d1 = t1.time_since_epoch().count();
+    auto d2 = t2.time_since_epoch().count();
+    BOOST_CHECK_LT(d1, d2);
 }
 
 // ===========================================================================

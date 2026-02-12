@@ -92,10 +92,8 @@ pitrac_lm_module_deps = [
 	fmt_dep, boost_dep, activemq_dep, ssl_dep, apr_dep, msgpack_dep, yamlcpp_dep, onnxruntime_dep,]
 
 # Include directories used by all modules
-pitrac_lm_include_dirs = ([
-	'.',
-	'/usr/include/apr-1.0',
-])
+# Note: include_directories() creates paths relative to the current meson.build
+pitrac_lm_include_dirs = include_directories('.')
 
 subdir('utils')
 subdir('core')

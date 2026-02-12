@@ -51,7 +51,7 @@ jobs:
           echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
           echo "version=${version}" >> "${GITHUB_OUTPUT}"
           echo "version_no_v=${version#v}" >> "${GITHUB_OUTPUT}"
-          echo "release_name=pitrac-light" >> "${GITHUB_OUTPUT}"
+          echo "release_name=pitrac-light ${version}" >> "${GITHUB_OUTPUT}"
           echo "prerelease=${prerelease}" >> "${GITHUB_OUTPUT}"
 
       - name: Build PiTrac binary

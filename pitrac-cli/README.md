@@ -418,6 +418,39 @@ go build -a -o ./pitrac-cli .
 ### ONNX build tries to download Eigen and fails
 The CLI passes preinstalled Eigen defines, but if you have old source/binary, update and rebuild.
 
+### `chdir: no such file or directory` or wrong PITRAC_ROOT path
+The CLI auto-detects the repository root by searching for `src/meson.build` and `README.md`. If it finds the wrong directory (e.g., old `PiTracLight` vs new `pitrac-light`), you have options:
+
+**Option 1: Set PITRAC_ROOT explicitly**
+```bash
+export PITRAC_ROOT=/home/pitracuser/pitrac-light
+pitrac-cli build
+```
+
+**Option 2: Remove old configuration**
+```bash
+# Check for old config
+cat ~/.pitrac/config/pitrac.env
+
+# If it has wrong PITRAC_ROOT, regenerate
+pitrac-cli env setup --force
+source ~/.bashrc
+```
+
+**Option 3: Run from repo directory**
+```bash
+cd /home/pitracuser/pitrac-light
+./pitrac-cli/pitrac-cli build
+```
+
+**Option 4: Rebuild CLI from latest code**
+```bash
+cd /home/pitracuser/pitrac-light/pitrac-cli
+go clean -cache
+go build -a -o pitrac-cli .
+./pitrac-cli --version  # Verify new version
+```
+
 Manual prerequisites:
 
 ```bash

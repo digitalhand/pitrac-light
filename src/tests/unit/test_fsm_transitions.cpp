@@ -93,11 +93,11 @@ BOOST_AUTO_TEST_CASE(WaitingForBallStabilization_StoresTimestamps) {
 BOOST_AUTO_TEST_CASE(WaitingForBallStabilization_StoresBallData) {
     WaitingForBallStabilization state;
     state.cam1_ball_ = GolfBall();
-    state.cam1_ball_.circle = GsCircle(100.0f, 200.0f, 25.0f);
+    state.cam1_ball_.ball_circle_ = GsCircle(100.0f, 200.0f, 25.0f);
 
-    BOOST_CHECK_EQUAL(state.cam1_ball_.circle[0], 100.0f);
-    BOOST_CHECK_EQUAL(state.cam1_ball_.circle[1], 200.0f);
-    BOOST_CHECK_EQUAL(state.cam1_ball_.circle[2], 25.0f);
+    BOOST_CHECK_EQUAL(state.cam1_ball_.ball_circle_[0], 100.0f);
+    BOOST_CHECK_EQUAL(state.cam1_ball_.ball_circle_[1], 200.0f);
+    BOOST_CHECK_EQUAL(state.cam1_ball_.ball_circle_[2], 25.0f);
 }
 
 BOOST_AUTO_TEST_CASE(WaitingForBallHit_StoresCamera2PreImage) {
@@ -128,12 +128,12 @@ BOOST_AUTO_TEST_CASE(GolfSimState_CanAccessWaitingForBall) {
 
 BOOST_AUTO_TEST_CASE(GolfSimState_CanAccessWaitingForBallStabilization) {
     WaitingForBallStabilization stab_state;
-    stab_state.cam1_ball_.circle = GsCircle(150.0f, 250.0f, 30.0f);
+    stab_state.cam1_ball_.ball_circle_ = GsCircle(150.0f, 250.0f, 30.0f);
 
     GolfSimState state = stab_state;
 
     if (auto* s = std::get_if<WaitingForBallStabilization>(&state)) {
-        BOOST_CHECK_EQUAL(s->cam1_ball_.circle[0], 150.0f);
+        BOOST_CHECK_EQUAL(s->cam1_ball_.ball_circle_[0], 150.0f);
     } else {
         BOOST_FAIL("Failed to access WaitingForBallStabilization state");
     }
@@ -224,7 +224,7 @@ BOOST_AUTO_TEST_CASE(StateTransition_WaitingToBallStabilization) {
     WaitingForBallStabilization stab_state;
     stab_state.startTime_ = std::chrono::steady_clock::now();
     stab_state.lastBallAcquisitionTime_ = stab_state.startTime_;
-    stab_state.cam1_ball_.circle = GsCircle(320.0f, 240.0f, 20.0f);
+    stab_state.cam1_ball_.ball_circle_ = GsCircle(320.0f, 240.0f, 20.0f);
 
     state = stab_state;
     BOOST_CHECK(std::holds_alternative<WaitingForBallStabilization>(state));
@@ -237,7 +237,7 @@ BOOST_AUTO_TEST_CASE(StateTransition_StabilizationToWaitingForHit) {
     // Ball stabilized, transition to waiting for hit
     WaitingForBallHit hit_state;
     hit_state.startTime_ = std::chrono::steady_clock::now();
-    hit_state.cam1_ball_.circle = GsCircle(320.0f, 240.0f, 20.0f);
+    hit_state.cam1_ball_.ball_circle_ = GsCircle(320.0f, 240.0f, 20.0f);
 
     state = hit_state;
     BOOST_CHECK(std::holds_alternative<WaitingForBallHit>(state));
@@ -249,7 +249,7 @@ BOOST_AUTO_TEST_CASE(StateTransition_HitToWaitingForCam2) {
 
     // Ball hit detected, transition to waiting for camera 2
     BallHitNowWaitingForCam2Image cam2_state;
-    cam2_state.cam1_ball_.circle = GsCircle(320.0f, 240.0f, 20.0f);
+    cam2_state.cam1_ball_.ball_circle_ = GsCircle(320.0f, 240.0f, 20.0f);
 
     state = cam2_state;
     BOOST_CHECK(std::holds_alternative<BallHitNowWaitingForCam2Image>(state));
@@ -262,7 +262,7 @@ BOOST_AUTO_TEST_CASE(StateTransition_HitToWaitingForCam2) {
 BOOST_AUTO_TEST_CASE(StateTransition_PreservesBallData) {
     // Ball data should be preserved across transitions
     GolfBall original_ball;
-    original_ball.circle = GsCircle(100.0f, 200.0f, 25.0f);
+    original_ball.ball_circle_ = GsCircle(100.0f, 200.0f, 25.0f);
 
     // Start in stabilization
     WaitingForBallStabilization stab_state;
@@ -274,9 +274,9 @@ BOOST_AUTO_TEST_CASE(StateTransition_PreservesBallData) {
     hit_state.startTime_ = std::chrono::steady_clock::now();
 
     // Verify ball data preserved
-    BOOST_CHECK_EQUAL(hit_state.cam1_ball_.circle[0], original_ball.circle[0]);
-    BOOST_CHECK_EQUAL(hit_state.cam1_ball_.circle[1], original_ball.circle[1]);
-    BOOST_CHECK_EQUAL(hit_state.cam1_ball_.circle[2], original_ball.circle[2]);
+    BOOST_CHECK_EQUAL(hit_state.cam1_ball_.ball_circle_[0], original_ball.ball_circle_[0]);
+    BOOST_CHECK_EQUAL(hit_state.cam1_ball_.ball_circle_[1], original_ball.ball_circle_[1]);
+    BOOST_CHECK_EQUAL(hit_state.cam1_ball_.ball_circle_[2], original_ball.ball_circle_[2]);
 }
 
 BOOST_AUTO_TEST_CASE(StateTransition_PreservesImageData) {

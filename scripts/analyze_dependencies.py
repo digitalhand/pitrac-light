@@ -13,7 +13,7 @@ import re
 import sys
 from pathlib import Path
 from collections import defaultdict
-from typing import Dict, List, Set, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 class DependencyAnalyzer:
     def __init__(self, src_dir: str):
@@ -80,7 +80,7 @@ class DependencyAnalyzer:
         include: str,
         include_to_module: Dict[str, str],
         file_name_to_modules: Dict[str, Set[str]]
-    ) -> str | None:
+    ) -> Optional[str]:
         """Resolve an include string to a local module name."""
         normalized = include.replace('\\', '/')
 
@@ -210,8 +210,7 @@ class DependencyAnalyzer:
     def generate_plantuml_diagram(self, output_file: str):
         """Generate PlantUML component diagram for module dependencies."""
         with open(output_file, 'w') as f:
-            f.write('@startuml PiTrac Module Dependencies\n')
-            f.write('!theme plain\n')
+            f.write('@startuml\n')
             f.write('skinparam componentStyle rectangle\n')
             f.write('skinparam backgroundColor white\n')
             f.write('skinparam defaultTextAlignment center\n')

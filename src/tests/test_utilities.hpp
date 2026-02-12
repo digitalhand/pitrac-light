@@ -17,6 +17,7 @@
 #include <boost/test/unit_test.hpp>
 #include <opencv2/core.hpp>
 #include <opencv2/imgcodecs.hpp>
+#include <opencv2/imgproc.hpp>
 #include <chrono>
 #include <filesystem>
 #include <memory>
@@ -56,12 +57,13 @@ struct TestPaths {
 struct OpenCVTestFixture {
     OpenCVTestFixture() {
         // Suppress OpenCV warnings during tests
-        cv::setLogLevel(cv::utils::logging::LOG_LEVEL_ERROR);
+        // Note: cv::setLogLevel not available in all OpenCV versions
+        // cv::setLogLevel(cv::utils::logging::LOG_LEVEL_ERROR);
     }
 
     ~OpenCVTestFixture() {
         // Restore default logging
-        cv::setLogLevel(cv::utils::logging::LOG_LEVEL_INFO);
+        // cv::setLogLevel(cv::utils::logging::LOG_LEVEL_INFO);
     }
 
     /**

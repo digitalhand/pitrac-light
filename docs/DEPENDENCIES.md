@@ -177,15 +177,15 @@
 
 Found **9** circular dependency chains:
 
-1. core → encoder → core
-2. core → sim/common → utils → core
-3. core → sim/common → core
-4. sim/common → sim/gspro → sim/common
-5. core → sim/common → sim/gspro → core
-6. core → output → core
-7. core → preview → core
-8. core → post_processing_stages → image → core
-9. core → post_processing_stages → core
+1. core → sim/gspro → core
+2. core → sim/gspro → utils → core
+3. core → sim/gspro → sim/common → core
+4. sim/gspro → sim/common → sim/gspro
+5. core → preview → core
+6. core → post_processing_stages → image → core
+7. core → post_processing_stages → core
+8. core → output → core
+9. core → encoder → core
 
 **Action Required:** Circular dependencies should be broken by:
 - Introducing interfaces/abstractions

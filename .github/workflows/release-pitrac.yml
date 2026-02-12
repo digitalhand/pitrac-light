@@ -51,7 +51,7 @@ jobs:
           echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
           echo "version=${version}" >> "${GITHUB_OUTPUT}"
           echo "version_no_v=${version#v}" >> "${GITHUB_OUTPUT}"
-          echo "release_name=PiTrac Core ${version}" >> "${GITHUB_OUTPUT}"
+          echo "release_name=pitrac-light" >> "${GITHUB_OUTPUT}"
           echo "prerelease=${prerelease}" >> "${GITHUB_OUTPUT}"
 
       - name: Build source zip bundle
@@ -61,7 +61,7 @@ jobs:
 
           mkdir -p dist
 
-          base_name="pitrac-core_${{ steps.meta.outputs.version_no_v }}"
+          base_name="pitrac-light_${{ steps.meta.outputs.version_no_v }}"
 
           git archive \
             --format=zip \
@@ -69,6 +69,47 @@ jobs:
             -o "dist/${base_name}_source.zip" \
             HEAD \
             src assets README.md LICENSE
+
+      - name: Build PiTrac binary
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cd src
+          rm -rf build
+          meson setup build --buildtype=release --prefix=/opt/pitrac
+          ninja -C build -j"$(nproc)"
+
+          test -x build/pitrac_lm
+
+      - name: Build runtime zip bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p dist
+
+          base_name="pitrac-light_${{ steps.meta.outputs.version_no_v }}_linux_arm64"
+          bundle_root="dist/${base_name}"
+
+          mkdir -p "${bundle_root}/bin" "${bundle_root}/config" "${bundle_root}/scripts"
+
+          install -m 0755 src/build/pitrac_lm "${bundle_root}/bin/pitrac_lm"
+          install -m 0644 src/golf_sim_config.json "${bundle_root}/config/golf_sim_config.json"
+          cp -a src/RunScripts/. "${bundle_root}/scripts/"
+
+          cat > "${bundle_root}/BUILD_INFO.txt" <<EOF
+          project: pitrac-light
+          version: ${{ steps.meta.outputs.version }}
+          commit: ${{ github.sha }}
+          platform: linux/arm64
+          EOF
+
+          (
+            cd dist
+            zip -qr "${base_name}.zip" "${base_name}"
+            rm -rf "${base_name}"
+          )
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2

@@ -54,22 +54,6 @@ jobs:
           echo "release_name=pitrac-light" >> "${GITHUB_OUTPUT}"
           echo "prerelease=${prerelease}" >> "${GITHUB_OUTPUT}"
 
-      - name: Build source zip bundle
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          mkdir -p dist
-
-          base_name="pitrac-light_${{ steps.meta.outputs.version_no_v }}"
-
-          git archive \
-            --format=zip \
-            --prefix="${base_name}/" \
-            -o "dist/${base_name}_source.zip" \
-            HEAD \
-            src assets README.md LICENSE
-
       - name: Build PiTrac binary
         shell: bash
         run: |
@@ -82,27 +66,37 @@ jobs:
 
           test -x build/pitrac_lm
 
-      - name: Build runtime zip bundle
+      - name: Build release zip bundle
+        id: bundle
         shell: bash
         run: |
           set -euo pipefail
 
+          rm -rf dist
           mkdir -p dist
 
           base_name="pitrac-light_${{ steps.meta.outputs.version_no_v }}_linux_arm64"
           bundle_root="dist/${base_name}"
+          zip_path="dist/${base_name}.zip"
 
-          mkdir -p "${bundle_root}/bin" "${bundle_root}/config" "${bundle_root}/scripts"
+          mkdir -p "${bundle_root}"
+          git archive \
+            --format=tar \
+            HEAD \
+            src assets README.md LICENSE \
+            | tar -xf - -C "${bundle_root}"
 
-          install -m 0755 src/build/pitrac_lm "${bundle_root}/bin/pitrac_lm"
-          install -m 0644 src/golf_sim_config.json "${bundle_root}/config/golf_sim_config.json"
-          cp -a src/RunScripts/. "${bundle_root}/scripts/"
+          rm -rf "${bundle_root}/src/build"
+          cp -a src/build "${bundle_root}/src/build"
+
+          test -x "${bundle_root}/src/build/pitrac_lm"
 
           cat > "${bundle_root}/BUILD_INFO.txt" <<EOF
           project: pitrac-light
           version: ${{ steps.meta.outputs.version }}
           commit: ${{ github.sha }}
           platform: linux/arm64
+          layout: repository-with-built-src-build
           EOF
 
           (
@@ -110,6 +104,8 @@ jobs:
             zip -qr "${base_name}.zip" "${base_name}"
             rm -rf "${base_name}"
           )
+
+          echo "zip_path=${zip_path}" >> "${GITHUB_OUTPUT}"
 
       - name: Publish GitHub Release
         id: publish
@@ -121,6 +117,4 @@ jobs:
           name: ${{ steps.meta.outputs.release_name }}
           prerelease: ${{ steps.meta.outputs.prerelease == 'true' }}
           generate_release_notes: true
-          files: |
-            dist/*.zip
-            
+          files: ${{ steps.bundle.outputs.zip_path }}

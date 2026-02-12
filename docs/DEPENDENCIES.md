@@ -7,28 +7,97 @@
 ## Summary
 
 - **Total Files Analyzed:** 206
-- **Total Modules:** 6
-- **Circular Dependencies:** 0
+- **Total Modules:** 12
+- **Circular Dependencies:** 9
 
 ## Modules
 
 | Module | Depends On | Dependents |
 |--------|------------|------------|
-| Camera | 1 | 0 |
-| post_processing_stages | 1 | 0 |
-| sim/common | 1 | 0 |
-| sim/gspro | 1 | 0 |
-| tests | 1 | 1 |
-| utils | 1 | 0 |
+| Camera | 0 | 0 |
+| ImageAnalysis | 0 | 0 |
+| core | 8 | 9 |
+| encoder | 1 | 1 |
+| image | 1 | 2 |
+| output | 1 | 1 |
+| post_processing_stages | 3 | 1 |
+| preview | 1 | 1 |
+| sim/common | 3 | 2 |
+| sim/gspro | 3 | 2 |
+| tests | 2 | 0 |
+| utils | 1 | 5 |
 
 ## Detailed Module Dependencies
 
 ### Camera
 
-**Depends on:**
-- `tests`
+**No dependencies**
 
 **Not used by other modules**
+
+---
+
+### ImageAnalysis
+
+**No dependencies**
+
+**Not used by other modules**
+
+---
+
+### core
+
+**Depends on:**
+- `encoder`
+- `image`
+- `output`
+- `post_processing_stages`
+- `preview`
+- `sim/common`
+- `sim/gspro`
+- `utils`
+
+**Used by:**
+- `encoder`
+- `image`
+- `output`
+- `post_processing_stages`
+- `preview`
+- `sim/common`
+- `sim/gspro`
+- `tests`
+- `utils`
+
+---
+
+### encoder
+
+**Depends on:**
+- `core`
+
+**Used by:**
+- `core`
+
+---
+
+### image
+
+**Depends on:**
+- `core`
+
+**Used by:**
+- `core`
+- `post_processing_stages`
+
+---
+
+### output
+
+**Depends on:**
+- `core`
+
+**Used by:**
+- `core`
 
 ---
 
@@ -36,8 +105,21 @@
 
 **Depends on:**
 - `core`
+- `image`
+- `utils`
 
-**Not used by other modules**
+**Used by:**
+- `core`
+
+---
+
+### preview
+
+**Depends on:**
+- `core`
+
+**Used by:**
+- `core`
 
 ---
 
@@ -45,8 +127,12 @@
 
 **Depends on:**
 - `core`
+- `sim/gspro`
+- `utils`
 
-**Not used by other modules**
+**Used by:**
+- `core`
+- `sim/gspro`
 
 ---
 
@@ -54,8 +140,12 @@
 
 **Depends on:**
 - `core`
+- `sim/common`
+- `utils`
 
-**Not used by other modules**
+**Used by:**
+- `core`
+- `sim/common`
 
 ---
 
@@ -63,9 +153,9 @@
 
 **Depends on:**
 - `core`
+- `utils`
 
-**Used by:**
-- `Camera`
+**Not used by other modules**
 
 ---
 
@@ -74,13 +164,52 @@
 **Depends on:**
 - `core`
 
-**Not used by other modules**
+**Used by:**
+- `core`
+- `post_processing_stages`
+- `sim/common`
+- `sim/gspro`
+- `tests`
 
 ---
 
-## ✅ No Circular Dependencies
+## ⚠️ Circular Dependencies
 
-All module dependencies are acyclic.
+Found **9** circular dependency chains:
+
+1. core → encoder → core
+2. core → sim/common → utils → core
+3. core → sim/common → core
+4. sim/common → sim/gspro → sim/common
+5. core → sim/common → sim/gspro → core
+6. core → output → core
+7. core → preview → core
+8. core → post_processing_stages → image → core
+9. core → post_processing_stages → core
+
+**Action Required:** Circular dependencies should be broken by:
+- Introducing interfaces/abstractions
+- Moving shared code to a common module
+- Using dependency injection
 
 ## Recommendations
+
+### Highly Coupled Modules
+
+Modules with more than 5 dependencies:
+
+- **core**: 8 dependencies
+
+Consider refactoring to reduce coupling.
+
+### Widely Used Modules
+
+Modules used by more than 5 other modules:
+
+- **core**: used by 9 modules
+
+These are good candidates for:
+- Comprehensive testing
+- API stability
+- Documentation
 

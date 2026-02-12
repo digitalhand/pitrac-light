@@ -20,6 +20,7 @@ class DependencyAnalyzer:
         self.src_dir = Path(src_dir)
         self.dependencies: Dict[str, Set[str]] = defaultdict(set)
         self.module_dependencies: Dict[str, Set[str]] = defaultdict(set)
+        self.modules: Set[str] = set()
         self.circular_deps: List[List[str]] = []
 
     def get_module_name(self, file_path: Path) -> str:
@@ -52,15 +53,58 @@ class DependencyAnalyzer:
                     match = re.match(r'\s*#include\s+[<"]([^>"]+)[>"]', line)
                     if match:
                         include = match.group(1)
-                        # Filter out system includes
-                        if not include.startswith('/') and '/' not in include:
-                            includes.add(include)
-                        elif include.startswith('utils/') or include.startswith('sim/'):
+                        # Keep non-absolute includes. Resolution happens later.
+                        if not include.startswith('/') and not re.match(r'^[A-Za-z]:[\\/]', include):
                             includes.add(include)
         except Exception as e:
             print(f"Warning: Could not parse {file_path}: {e}", file=sys.stderr)
 
         return includes
+
+    def build_include_index(self, source_files: List[Path]) -> Tuple[Dict[str, str], Dict[str, Set[str]]]:
+        """Build lookup tables for resolving include paths to modules."""
+        include_to_module: Dict[str, str] = {}
+        file_name_to_modules: Dict[str, Set[str]] = defaultdict(set)
+
+        for file_path in source_files:
+            rel_path = file_path.relative_to(self.src_dir).as_posix()
+            module = self.get_module_name(file_path)
+
+            include_to_module[rel_path] = module
+            file_name_to_modules[file_path.name].add(module)
+
+        return include_to_module, file_name_to_modules
+
+    def resolve_include_module(
+        self,
+        include: str,
+        include_to_module: Dict[str, str],
+        file_name_to_modules: Dict[str, Set[str]]
+    ) -> str | None:
+        """Resolve an include string to a local module name."""
+        normalized = include.replace('\\', '/')
+
+        # Exact relative path include (e.g. "core/options.hpp").
+        if normalized in include_to_module:
+            return include_to_module[normalized]
+
+        # Bare include by filename (e.g. "options.hpp"), only if unambiguous.
+        include_name = Path(normalized).name
+        modules = file_name_to_modules.get(include_name, set())
+        if len(modules) == 1:
+            return next(iter(modules))
+
+        # Fallback for module-prefixed includes when file is missing from scan.
+        parts = normalized.split('/')
+        if parts:
+            if parts[0] == 'sim' and len(parts) > 1:
+                sim_module = f"sim/{parts[1]}"
+                if sim_module in self.modules:
+                    return sim_module
+            if parts[0] in self.modules:
+                return parts[0]
+
+        return None
 
     def analyze(self):
         """Analyze all source files and build dependency graph."""
@@ -71,6 +115,10 @@ class DependencyAnalyzer:
 
         # Exclude build directories
         source_files = [f for f in source_files if 'build' not in f.parts]
+        self.modules = {self.get_module_name(file_path) for file_path in source_files}
+        for module in self.modules:
+            self.module_dependencies[module]
+        include_to_module, file_name_to_modules = self.build_include_index(source_files)
 
         print(f"Analyzing {len(source_files)} source files...")
 
@@ -83,16 +131,12 @@ class DependencyAnalyzer:
             # Build module-level dependencies
             from_module = self.get_module_name(file_path)
             for include in includes:
-                # Find the included file
-                for other_file in source_files:
-                    if other_file.name == include:
-                        to_module = self.get_module_name(other_file)
-                        if from_module != to_module:
-                            self.module_dependencies[from_module].add(to_module)
-                        break
+                to_module = self.resolve_include_module(include, include_to_module, file_name_to_modules)
+                if to_module and from_module != to_module:
+                    self.module_dependencies[from_module].add(to_module)
 
         print(f"Found {len(self.dependencies)} files with dependencies")
-        print(f"Found {len(self.module_dependencies)} modules")
+        print(f"Found {len(self.modules)} modules")
 
     def detect_circular_dependencies(self) -> List[List[str]]:
         """Detect circular dependencies using DFS."""
@@ -117,7 +161,7 @@ class DependencyAnalyzer:
             return False
 
         visited = set()
-        for module in self.module_dependencies.keys():
+        for module in sorted(self.modules):
             dfs(module, visited, [])
 
         return self.circular_deps
@@ -148,7 +192,7 @@ class DependencyAnalyzer:
             }
 
             # Add nodes
-            for module in sorted(self.module_dependencies.keys()):
+            for module in sorted(self.modules):
                 color = colors.get(module, '#FFFFFF')
                 f.write(f'    "{module}" [fillcolor="{color}", style="filled,rounded"];\n')
 
@@ -201,7 +245,7 @@ class DependencyAnalyzer:
             integration = []
             other = []
 
-            for module in sorted(self.module_dependencies.keys()):
+            for module in sorted(self.modules):
                 stereotype, color = module_styles.get(module, ('Component', '#FFFFFF'))
 
                 if stereotype == 'BoundedContext':
@@ -279,7 +323,7 @@ class DependencyAnalyzer:
             # Summary
             f.write("## Summary\n\n")
             f.write(f"- **Total Files Analyzed:** {len(self.dependencies)}\n")
-            f.write(f"- **Total Modules:** {len(self.module_dependencies)}\n")
+            f.write(f"- **Total Modules:** {len(self.modules)}\n")
             f.write(f"- **Circular Dependencies:** {len(self.circular_deps)}\n\n")
 
             # Module overview
@@ -293,7 +337,7 @@ class DependencyAnalyzer:
                 for to_mod in to_mods:
                     reverse_deps[to_mod].add(from_mod)
 
-            for module in sorted(self.module_dependencies.keys()):
+            for module in sorted(self.modules):
                 deps = self.module_dependencies[module]
                 rev_deps = reverse_deps.get(module, set())
                 f.write(f"| {module} | {len(deps)} | {len(rev_deps)} |\n")
@@ -302,7 +346,7 @@ class DependencyAnalyzer:
 
             # Detailed dependencies
             f.write("## Detailed Module Dependencies\n\n")
-            for module in sorted(self.module_dependencies.keys()):
+            for module in sorted(self.modules):
                 f.write(f"### {module}\n\n")
 
                 deps = sorted(self.module_dependencies[module])

@@ -20,6 +20,7 @@ add_global_arguments('-Wno-deprecated-enum-enum-conversion', language : 'cpp')
 add_global_arguments('-Wno-deprecated-declarations', language : 'cpp')
 add_global_arguments('-Wno-comment', language : 'cpp')
 add_global_arguments('-Wno-unused', language : 'cpp')
+add_global_arguments('-Wno-strict-aliasing', language : 'cpp')  # Type-punning in SetConstant calls
 
 # Required definitions
 add_global_arguments('-D_FILE_OFFSET_BITS=64', language : 'cpp')  # Support for large files

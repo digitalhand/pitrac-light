@@ -25,7 +25,7 @@
 # Golang-go
 *.mod
 *.smod
-!cmd/pitrac-cli/go.mod
+!pitrac-cli/go.mod
 
 # Compiled Static libraries
 *.lai

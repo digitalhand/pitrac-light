@@ -3,7 +3,7 @@ name: Release CLI
 on:
   push:
     tags:
-      - 'cmd/pitrac-cli/v*'
+      - 'pitrac-cli/v*'
   workflow_dispatch:
     inputs:
       version:
@@ -32,8 +32,8 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version-file: ./cmd/pitrac-cli/go.mod
-          cache-dependency-path: ./cmd/pitrac-cli/go.sum
+          go-version-file: ./pitrac-cli/go.mod
+          cache-dependency-path: ./pitrac-cli/go.sum
 
       - name: Resolve release metadata
         id: meta
@@ -43,13 +43,13 @@ jobs:
 
           if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
             version="${{ inputs.version }}"
-            version="${version#cmd/pitrac-cli/}"
+            [[ "${version}" == */* ]] && version="${version##*/}"
             [[ "${version}" == v* ]] || version="v${version}"
-            tag="cmd/pitrac-cli/${version}"
+            tag="pitrac-cli/${version}"
             prerelease="${{ inputs.prerelease }}"
           else
             tag="${GITHUB_REF_NAME}"
-            version="${tag#cmd/pitrac-cli/}"
+            version="${tag#pitrac-cli/}"
             prerelease="false"
             [[ "${version}" == *-* ]] && prerelease="true"
           fi
@@ -61,7 +61,7 @@ jobs:
           echo "prerelease=${prerelease}" >> "${GITHUB_OUTPUT}"
 
       - name: Run CLI tests
-        working-directory: cmd/pitrac-cli
+        working-directory: pitrac-cli
         run: go test ./...
 
       - name: Build release binaries
@@ -83,12 +83,12 @@ jobs:
 
             build_path="dist/${bin_name}"
             GOOS="${goos}" GOARCH="${goarch}" CGO_ENABLED=0 \
-              go build -C cmd/pitrac-cli \
+              go build -C pitrac-cli \
               -trimpath \
               -ldflags "-s -w \
-                -X github.com/jeshernandez/PiTracLight/cmd/pitrac-cli/cmd.Version=${{ steps.meta.outputs.version }} \
-                -X github.com/jeshernandez/PiTracLight/cmd/pitrac-cli/cmd.Commit=${short_sha} \
-                -X github.com/jeshernandez/PiTracLight/cmd/pitrac-cli/cmd.Date=${build_date}" \
+                -X github.com/digitalhand/pitrac-light/pitrac-cli/cmd.Version=${{ steps.meta.outputs.version }} \
+                -X github.com/digitalhand/pitrac-light/pitrac-cli/cmd.Commit=${short_sha} \
+                -X github.com/digitalhand/pitrac-light/pitrac-cli/cmd.Date=${build_date}" \
               -o "${GITHUB_WORKSPACE}/${build_path}" .
 
             archive_base="pitrac-cli_${{ steps.meta.outputs.version_no_v }}_${goos}_${goarch}"

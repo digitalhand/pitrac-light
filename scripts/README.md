@@ -14,8 +14,10 @@ python3 scripts/analyze_dependencies.py
 ```
 
 **Outputs:**
-- `docs/module-dependencies.dot` - GraphViz DOT file
-- `docs/module-dependencies.svg` - Visual dependency graph (requires GraphViz)
+- `assets/diagram/module-dependencies.puml` - PlantUML component diagram (primary)
+- `assets/module-dependencies.dot` - GraphViz DOT file (alternative)
+- `assets/module-dependencies.svg` - Visual dependency graph (SVG)
+- `assets/module-dependencies.png` - Visual dependency graph (PNG)
 - `docs/DEPENDENCIES.md` - Human-readable dependency report
 
 **What it analyzes:**
@@ -24,25 +26,45 @@ python3 scripts/analyze_dependencies.py
 - Highly coupled modules
 - Widely used modules
 
-**Generating the visual graph:**
+**Generating visual graphs:**
+
+*PlantUML (recommended - matches project diagram standards):*
+```bash
+# Install PlantUML (if not already installed)
+sudo apt install plantuml
+
+# Generate PNG from PlantUML
+plantuml assets/diagram/module-dependencies.puml
+
+# Or use IDE plugins (VS Code: PlantUML extension)
+```
+
+*GraphViz (alternative):*
 ```bash
 # Install GraphViz (if not already installed)
 sudo apt install graphviz
 
 # Generate SVG
-dot -Tsvg docs/module-dependencies.dot -o docs/module-dependencies.svg
+dot -Tsvg assets/module-dependencies.dot -o assets/module-dependencies.svg
 
 # Or PNG
-dot -Tpng docs/module-dependencies.dot -o docs/module-dependencies.png
+dot -Tpng assets/module-dependencies.dot -o assets/module-dependencies.png
 ```
 
 **Interpreting the results:**
 
-- **Green boxes (utils):** Utility modules - should be dependency-free
-- **Blue boxes (Camera/ImageAnalysis):** Bounded contexts - should be isolated
-- **Yellow boxes (sim):** Simulator integrations
-- **Red boxes (core):** Core launch monitor logic
+*PlantUML diagram:*
+- Modules grouped into packages: "Bounded Contexts", "Infrastructure", "Simulator Integration"
+- Color-coded components with legend
+- **Blue (Camera/ImageAnalysis):** Bounded contexts - should be isolated
+- **Green (utils):** Utility modules - should be dependency-free
+- **Yellow (sim):** Simulator integrations
+- **Red (core/infrastructure):** Core launch monitor logic
 - **Arrows:** Dependency relationships (A → B means "A depends on B")
+
+*GraphViz diagram:*
+- Flat layout with color-coded nodes (same color scheme as PlantUML)
+- Left-to-right dependency flow (rankdir=LR)
 
 ## Adding New Scripts
 
@@ -60,7 +82,8 @@ When adding new analysis scripts:
 - Python 3.6+
 
 **Optional:**
-- GraphViz (`sudo apt install graphviz`) - for visual dependency graphs
+- PlantUML (`sudo apt install plantuml`) - for PlantUML component diagrams (recommended)
+- GraphViz (`sudo apt install graphviz`) - for GraphViz visual dependency graphs (alternative)
 
 ## See Also
 

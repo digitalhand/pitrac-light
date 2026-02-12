@@ -163,6 +163,112 @@ class DependencyAnalyzer:
 
         print(f"Generated DOT graph: {output_file}")
 
+    def generate_plantuml_diagram(self, output_file: str):
+        """Generate PlantUML component diagram for module dependencies."""
+        with open(output_file, 'w') as f:
+            f.write('@startuml PiTrac Module Dependencies\n')
+            f.write('!theme plain\n')
+            f.write('skinparam componentStyle rectangle\n')
+            f.write('skinparam backgroundColor white\n')
+            f.write('skinparam defaultTextAlignment center\n')
+            f.write('\n')
+            f.write('title PiTrac Launch Monitor - Module Dependencies\n')
+            f.write('\n')
+
+            # Define module colors and stereotypes
+            module_styles = {
+                'core': ('Technology', '#FFE5E5'),
+                'utils': ('Utility', '#E5F5E5'),
+                'Camera': ('BoundedContext', '#E5E5FF'),
+                'ImageAnalysis': ('BoundedContext', '#FFE5FF'),
+                'sim': ('Integration', '#FFFFE5'),
+                'sim/common': ('Integration', '#FFFFD0'),
+                'sim/gspro': ('Integration', '#FFFFD0'),
+                'tests': ('Testing', '#F0F0F0'),
+                'encoder': ('Infrastructure', '#FFE5E5'),
+                'image': ('Infrastructure', '#FFE5E5'),
+                'output': ('Infrastructure', '#FFE5E5'),
+                'preview': ('Infrastructure', '#FFE5E5'),
+                'post_processing_stages': ('Processing', '#FFE5E5'),
+            }
+
+            # Add components with colors
+            f.write('package "PiTrac Launch Monitor" {\n')
+
+            # Group by type
+            bounded_contexts = []
+            infrastructure = []
+            integration = []
+            other = []
+
+            for module in sorted(self.module_dependencies.keys()):
+                stereotype, color = module_styles.get(module, ('Component', '#FFFFFF'))
+
+                if stereotype == 'BoundedContext':
+                    bounded_contexts.append((module, color))
+                elif stereotype in ['Infrastructure', 'Processing']:
+                    infrastructure.append((module, color))
+                elif stereotype == 'Integration':
+                    integration.append((module, color))
+                else:
+                    other.append((module, color))
+
+            # Bounded Contexts
+            if bounded_contexts:
+                f.write('\n  package "Bounded Contexts" #EEEEEE {\n')
+                for module, color in bounded_contexts:
+                    clean_name = module.replace('/', '_')
+                    f.write(f'    component [{module}] as {clean_name} {color}\n')
+                f.write('  }\n')
+
+            # Infrastructure
+            if infrastructure:
+                f.write('\n  package "Infrastructure" #EEEEEE {\n')
+                for module, color in infrastructure:
+                    clean_name = module.replace('/', '_')
+                    f.write(f'    component [{module}] as {clean_name} {color}\n')
+                f.write('  }\n')
+
+            # Integration
+            if integration:
+                f.write('\n  package "Simulator Integration" #EEEEEE {\n')
+                for module, color in integration:
+                    clean_name = module.replace('/', '_')
+                    f.write(f'    component [{module}] as {clean_name} {color}\n')
+                f.write('  }\n')
+
+            # Other modules
+            if other:
+                f.write('\n')
+                for module, color in other:
+                    clean_name = module.replace('/', '_')
+                    f.write(f'  component [{module}] as {clean_name} {color}\n')
+
+            f.write('}\n\n')
+
+            # Add dependencies
+            for from_module, to_modules in sorted(self.module_dependencies.items()):
+                from_clean = from_module.replace('/', '_')
+                for to_module in sorted(to_modules):
+                    to_clean = to_module.replace('/', '_')
+                    f.write(f'{from_clean} --> {to_clean}\n')
+
+            f.write('\n')
+
+            # Add legend
+            f.write('legend right\n')
+            f.write('  |= Color |= Type |\n')
+            f.write('  | <#E5E5FF> | Bounded Context |\n')
+            f.write('  | <#E5F5E5> | Utilities |\n')
+            f.write('  | <#FFE5E5> | Infrastructure |\n')
+            f.write('  | <#FFFFD0> | Simulator Integration |\n')
+            f.write('  | <#F0F0F0> | Testing |\n')
+            f.write('endlegend\n')
+
+            f.write('\n@enduml\n')
+
+        print(f"Generated PlantUML diagram: {output_file}")
+
     def generate_report(self, output_file: str):
         """Generate human-readable dependency report."""
         with open(output_file, 'w') as f:
@@ -277,15 +383,27 @@ def main():
     docs_dir = Path(__file__).parent.parent / 'docs'
     docs_dir.mkdir(exist_ok=True)
 
-    analyzer.generate_dot_graph(str(docs_dir / 'module-dependencies.dot'))
+    assets_dir = Path(__file__).parent.parent / 'assets'
+    assets_dir.mkdir(exist_ok=True)
+
+    diagram_dir = assets_dir / 'diagram'
+    diagram_dir.mkdir(exist_ok=True)
+
+    # Generate all formats
+    analyzer.generate_dot_graph(str(assets_dir / 'module-dependencies.dot'))
+    analyzer.generate_plantuml_diagram(str(diagram_dir / 'module-dependencies.puml'))
     analyzer.generate_report(str(docs_dir / 'DEPENDENCIES.md'))
 
     print("\n✅ Dependency analysis complete!")
-    print(f"   - DOT graph: docs/module-dependencies.dot")
+    print(f"   - PlantUML diagram: assets/diagram/module-dependencies.puml")
+    print(f"   - DOT graph: assets/module-dependencies.dot")
     print(f"   - Report: docs/DEPENDENCIES.md")
-    print("\nTo generate SVG graph:")
-    print("   dot -Tsvg docs/module-dependencies.dot -o docs/module-dependencies.svg")
-    print("   (requires GraphViz: sudo apt install graphviz)")
+    print("\nTo generate PlantUML images:")
+    print("   plantuml assets/diagram/module-dependencies.puml")
+    print("   (or use PlantUML plugin in IDE)")
+    print("\nTo generate GraphViz images:")
+    print("   dot -Tsvg assets/module-dependencies.dot -o assets/module-dependencies.svg")
+    print("   dot -Tpng assets/module-dependencies.dot -o assets/module-dependencies.png")
 
 if __name__ == '__main__':
     main()

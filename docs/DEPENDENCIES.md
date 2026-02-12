@@ -6,8 +6,8 @@
 
 ## Summary
 
-- **Total Files Analyzed:** 203
-- **Total Modules:** 5
+- **Total Files Analyzed:** 206
+- **Total Modules:** 6
 - **Circular Dependencies:** 0
 
 ## Modules
@@ -18,6 +18,7 @@
 | post_processing_stages | 1 | 0 |
 | sim/common | 1 | 0 |
 | sim/gspro | 1 | 0 |
+| tests | 1 | 1 |
 | utils | 1 | 0 |
 
 ## Detailed Module Dependencies
@@ -55,6 +56,16 @@
 - `core`
 
 **Not used by other modules**
+
+---
+
+### tests
+
+**Depends on:**
+- `core`
+
+**Used by:**
+- `Camera`
 
 ---
 

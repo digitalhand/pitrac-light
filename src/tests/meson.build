@@ -115,11 +115,14 @@ test('IPC Serialization Tests',
 # It's automatically available via test_include_dirs
 
 # =============================================================================
-# Custom Test Targets
+# Running Tests
 # =============================================================================
 
-# Run all unit tests
-run_alias('test-unit', test_cv_utils, test_fsm_transitions, test_calibration, test_ipc_serialization)
-
-# Run all tests (default meson test command will run all)
-# meson test --print-errorlogs
+# Run all tests:
+#   meson test -C src/build --print-errorlogs
+#
+# Run only unit tests:
+#   meson test -C src/build --suite unit --print-errorlogs
+#
+# Run specific suite:
+#   meson test -C src/build --suite core --print-errorlogs

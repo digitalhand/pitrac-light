@@ -7,8 +7,10 @@ High-performance Raspberry Pi image processing pipeline for the PiTrac launch 
 ## Table of Contents
 - [Repository Layout](#repository-layout)
 - [Contributor Guide](#contributor-guide)
+- [Pre-Requirements](#pre-requirements)
+  - [CLI Installation (Raspberry Pi OS)](#cli-installation-raspberry-pi-os)
 - [Getting Started](#getting-started)
-  - [Step 1 — Install the CLI](#step-1--install-the-cli)
+  - [Step 1 — Confirm CLI Installation](#step-1--confirm-cli-installation)
   - [Step 2 — Pre-flight Check](#step-2--pre-flight-check)
   - [Step 3 — Install Dependencies](#step-3--install-dependencies)
   - [Step 4 — Environment Setup](#step-4--environment-setup)
@@ -41,31 +43,56 @@ High-performance Raspberry Pi image processing pipeline for the PiTrac launch 
 
 Contributor expectations and workflow standards are documented in `AGENTS.md`.
 
+## Pre-Requirements
+
+This project is focused on the software/runtime side of PiTrac. It assumes your hardware setup (cameras, trigger, lighting, and wiring) is already connected and basically operational.
+
+If hardware behavior still looks incorrect, validate software-side readiness first:
+
+```bash
+pitrac-cli doctor
+pitrac-cli validate install
+```
+
+### CLI Installation (Raspberry Pi OS)
+
+`pitrac-cli` requires Go. On Raspberry Pi OS:
+
+```bash
+sudo apt update
+sudo apt install -y golang-go unzip
+go version
+```
+
+Use Go `1.21+` (the CLI module target is `go 1.21`). If `go version` prints lower than `1.21`, install a newer Go toolchain before continuing.
+
+Download the latest `pitrac-cli_*_linux_arm64.zip` from:
+
+[https://github.com/digitalhand/pitrac-light/releases](https://github.com/digitalhand/pitrac-light/releases)
+
+Then install:
+
+```bash
+cd /tmp
+unzip -o pitrac-cli_*_linux_arm64.zip
+sudo install -m 0755 pitrac-cli /usr/local/bin/pitrac-cli
+pitrac-cli --help
+```
+
 ## Getting Started
 
 Follow these eight steps, in order, to go from a fresh clone to a running PiTrac system.
 
-### Step 1 — Install the CLI
+### Step 1 — Confirm CLI Installation
 
-Install the `pitrac-cli` tool which automates the remaining steps:
+Ensure `pitrac-cli` is installed before continuing (see [CLI Installation (Raspberry Pi OS)](#cli-installation-raspberry-pi-os)).
 
-```bash
-go install github.com/jeshernandez/PiTracLight/cmd/pitrac-cli@latest
-```
-
-Make sure the Go bin directory is on your `PATH`:
+Optional (developer build from source):
 
 ```bash
-echo 'export PATH="$PATH:$(go env GOPATH)/bin"' >> ~/.bashrc
-source ~/.bashrc
-```
-
-Alternatively, build from source:
-
-```bash
-cd cmd/pitrac-cli
+cd pitrac-cli
 go build -o pitrac-cli .
-sudo mv pitrac-cli /usr/local/bin/
+sudo install -m 0755 pitrac-cli /usr/local/bin/pitrac-cli
 ```
 
 ### Step 2 — Pre-flight Check
@@ -215,7 +242,7 @@ Use `--camera 2` for camera 2 variants, and `--dry-run` to preview the resolved 
 src/build/pitrac_lm --system_mode camera1 --config_file src/golf_sim_config.json
 ```
 
-See [cmd/pitrac-cli/README.md](cmd/pitrac-cli/README.md) for the full CLI reference.
+See [pitrac-cli/README.md](pitrac-cli/README.md) for the full CLI reference.
 
 ## Meson Build Options
 

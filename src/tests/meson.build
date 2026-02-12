@@ -27,7 +27,7 @@ test_include_dirs = include_directories('.', '..')
 test_cv_utils = executable('test_cv_utils',
     'unit/test_cv_utils.cpp',
     include_directories : test_include_dirs,
-    link_with : [vision_lib, utils_lib],
+    link_with : [vision_lib, core_lib, utils_lib],
     dependencies : [boost_test_dep] + pitrac_lm_module_deps,
     build_by_default : true)
 

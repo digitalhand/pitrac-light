@@ -68,7 +68,7 @@ jobs:
             --prefix="${base_name}/" \
             -o "dist/${base_name}_source.zip" \
             HEAD \
-            src assets README.md LICENSE AGENTS.md
+            src assets README.md LICENSE
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2

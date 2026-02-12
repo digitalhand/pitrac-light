@@ -1,4 +1,4 @@
-module github.com/jeshernandez/PiTracLight/cmd/pitrac-cli
+module github.com/digitalhand/pitrac-light/pitrac-cli
 
 go 1.21
 

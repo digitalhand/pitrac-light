@@ -1,10 +1,13 @@
 # PiTrac
 
-High-performance Raspberry Pi image processing pipeline for the PiTrac launch monitor. The system ingests strobed camera feeds, detects golf balls, computes full 3D shot metrics, and streams the data to connected golf simulator software (GSPro, TruGolf, etc.).
+Same C++ code base as https://github.com/PiTracLM/PiTrac. However, this project is meant to reduce pipelines, communications, and anything that is not needed to make shot detection, and simulators software like Open Shot Golf (OSG) and GSPro payloads slower. 
+
 
 > For the hardware-focused installation and wiring guide, see the published documentation: [PiTrac Install Guide](https://pitraclm.github.io/PiTrac/software/pitrac-install.html).
 
 ## Table of Contents
+- [What this is not](#what-this-is-not)
+  - [CLI Installation (Raspberry Pi OS)](#cli-installation-raspberry-pi-os)
 - [Repository Layout](#repository-layout)
 - [Contributor Guide](#contributor-guide)
 - [Getting Started](#getting-started)
@@ -24,6 +27,36 @@ High-performance Raspberry Pi image processing pipeline for the PiTrac launch 
 - [Architecture Diagrams](#architecture-diagrams)
 - [Simulator Data](#simulator-data)
 - [Additional Resources](#additional-resources)
+
+## What this is not 
+- Not meant to work together with existing package based PiTrac. 
+- Meant to provide a source level (slower due to compiling) installation.
+- Not meant to be friendly, easier to use. In fact, its harder due to self configuration, installation. 
+  - However, a CLI tool pitrac-cli is included in the release 
+
+### CLI Installation (Raspberry Pi OS)
+
+`pitrac-cli` requires Go. On Raspberry Pi OS:
+
+```bash
+sudo apt update
+sudo apt install -y golang-go unzip
+go version
+```
+
+Use Go `1.21+` (the CLI module target is `go 1.21`). If `go version` prints anything below `1.21`, install a newer Go toolchain before continuing.
+
+Direct download for `v0.1.0`:
+
+```bash
+wget -O /tmp/pitrac-cli_0.1.0_linux_arm64.zip \
+  "https://github.com/digitalhand/pitrac-light/releases/download/pitrac-cli%2Fv0.1.0/pitrac-cli_0.1.0_linux_arm64.zip"
+unzip -o /tmp/pitrac-cli_0.1.0_linux_arm64.zip -d /tmp
+sudo install -m 0755 /tmp/pitrac-cli /usr/local/bin/pitrac-cli
+pitrac-cli --help
+```
+
+The URL path is correct for this repository because the release tag includes slashes (`pitrac-cli/v0.1.0`), which appear URL-encoded as `%2F` in the download link.
 
 ## Repository Layout
 
@@ -50,7 +83,7 @@ Follow these eight steps, in order, to go from a fresh clone to a running PiTrac
 Install the `pitrac-cli` tool which automates the remaining steps:
 
 ```bash
-go install github.com/jeshernandez/PiTracLight/cmd/pitrac-cli@latest
+go install github.com/digitalhand/pitrac-light/pitrac-cli@latest
 ```
 
 Make sure the Go bin directory is on your `PATH`:
@@ -63,7 +96,7 @@ source ~/.bashrc
 Alternatively, build from source:
 
 ```bash
-cd cmd/pitrac-cli
+cd pitrac-cli
 go build -o pitrac-cli .
 sudo mv pitrac-cli /usr/local/bin/
 ```
@@ -215,7 +248,7 @@ Use `--camera 2` for camera 2 variants, and `--dry-run` to preview the resolved 
 src/build/pitrac_lm --system_mode camera1 --config_file src/golf_sim_config.json
 ```
 
-See [cmd/pitrac-cli/README.md](cmd/pitrac-cli/README.md) for the full CLI reference.
+See [pitrac-cli/README.md](pitrac-cli/README.md) for the full CLI reference.
 
 ## Meson Build Options
 

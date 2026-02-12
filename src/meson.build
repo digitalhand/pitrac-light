@@ -91,7 +91,11 @@ pitrac_lm_module_deps = [
 	libcamera_dep, thread_dep, opencv_dep, lgpio_dep, rpicam_app_dep,
 	fmt_dep, boost_dep, activemq_dep, ssl_dep, apr_dep, msgpack_dep, yamlcpp_dep, onnxruntime_dep,]
 
-
+# Include directories used by all modules
+pitrac_lm_include_dirs = ([
+	'.',
+	'/usr/include/apr-1.0',
+])
 
 subdir('utils')
 subdir('core')
@@ -200,11 +204,6 @@ core_sources = [
 ]
 
 core_sources += rpicam_app_src
-
-pitrac_lm_include_dirs = ([
-		'.',
-		'/usr/include/apr-1.0',
-])
 
 sim_lib = static_library('sim',
     sources: sim_sources,

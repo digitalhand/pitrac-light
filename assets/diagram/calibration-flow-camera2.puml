@@ -1,0 +1,49 @@
+@startuml
+title PiTrac Camera 2 Calibration Flow
+
+skinparam shadowing false
+skinparam backgroundColor white
+skinparam activity {
+  BackgroundColor #F8F9FA
+  BorderColor #333333
+  ArrowColor #333333
+  FontColor #111111
+}
+
+start
+
+:Optional pre-check:\nPOST /api/calibration/ball-location/camera2;
+:Optional still capture:\nPOST /api/calibration/capture/camera2;
+:Validate image quality in\n~/LM_Shares/Images;
+
+:POST /api/calibration/auto/camera2;
+:CalibrationManager creates session\nfor expected keys:\n- gs_config.cameras.kCamera2FocalLength\n- gs_config.cameras.kCamera2Angles;
+
+if (Single-Pi mode?) then (yes)
+  :Start background pitrac_lm:\n--run_single_pi --system_mode runCam2ProcessForPi1Processing;
+  :Wait ~4s for background init;
+  :Start foreground pitrac_lm:\n--system_mode camera2AutoCalibrate;
+else (no)
+  :Run standard (single-process)\ncamera2 calibration fallback;
+endif
+
+:Hybrid completion detection:\n1) API callbacks\n2) Process exit\n3) Timeout (140s);
+
+if (Both callback keys received?) then (yes)
+  :PUT /api/config updates camera2\nfocal length + angles;
+  :Write values into\n~/.pitrac/config/calibration_data.json;
+  :Regenerate\n~/.pitrac/config/generated_golf_sim_config.json;
+else (no)
+  :Fallback to process result\nand output parsing for failure markers;
+endif
+
+if (Background process running?) then (yes)
+  :Terminate camera2 background process;
+endif
+
+:Status exposed via\nGET /api/calibration/status;
+:Calibration values exposed via\nGET /api/calibration/data;
+:Validate resulting calibration images\nin ~/LM_Shares/Images;
+
+stop
+@enduml

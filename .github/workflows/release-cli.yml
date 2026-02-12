@@ -1,0 +1,118 @@
+name: Release CLI
+
+on:
+  push:
+    tags:
+      - 'cmd/pitrac-cli/v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (example: v0.2.0)'
+        required: true
+        type: string
+      prerelease:
+        description: 'Mark as prerelease'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: ./cmd/pitrac-cli/go.mod
+          cache-dependency-path: ./cmd/pitrac-cli/go.sum
+
+      - name: Resolve release metadata
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            version="${{ inputs.version }}"
+            version="${version#cmd/pitrac-cli/}"
+            [[ "${version}" == v* ]] || version="v${version}"
+            tag="cmd/pitrac-cli/${version}"
+            prerelease="${{ inputs.prerelease }}"
+          else
+            tag="${GITHUB_REF_NAME}"
+            version="${tag#cmd/pitrac-cli/}"
+            prerelease="false"
+            [[ "${version}" == *-* ]] && prerelease="true"
+          fi
+
+          echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+          echo "version_no_v=${version#v}" >> "${GITHUB_OUTPUT}"
+          echo "release_name=PiTrac CLI ${version}" >> "${GITHUB_OUTPUT}"
+          echo "prerelease=${prerelease}" >> "${GITHUB_OUTPUT}"
+
+      - name: Run CLI tests
+        working-directory: cmd/pitrac-cli
+        run: go test ./...
+
+      - name: Build release binaries
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p dist
+          build_date="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          short_sha="${GITHUB_SHA::12}"
+
+          platforms=(
+            "linux arm64"
+          )
+
+          for platform in "${platforms[@]}"; do
+            read -r goos goarch <<< "${platform}"
+            bin_name="pitrac-cli"
+
+            build_path="dist/${bin_name}"
+            GOOS="${goos}" GOARCH="${goarch}" CGO_ENABLED=0 \
+              go build -C cmd/pitrac-cli \
+              -trimpath \
+              -ldflags "-s -w \
+                -X github.com/jeshernandez/PiTracLight/cmd/pitrac-cli/cmd.Version=${{ steps.meta.outputs.version }} \
+                -X github.com/jeshernandez/PiTracLight/cmd/pitrac-cli/cmd.Commit=${short_sha} \
+                -X github.com/jeshernandez/PiTracLight/cmd/pitrac-cli/cmd.Date=${build_date}" \
+              -o "${GITHUB_WORKSPACE}/${build_path}" .
+
+            archive_base="pitrac-cli_${{ steps.meta.outputs.version_no_v }}_${goos}_${goarch}"
+            (
+              cd dist
+              zip -q "${archive_base}.zip" "${bin_name}"
+            )
+
+            rm -f "${build_path}"
+          done
+
+          (
+            cd dist
+            sha256sum *.zip > checksums.txt
+          )
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          name: ${{ steps.meta.outputs.release_name }}
+          prerelease: ${{ steps.meta.outputs.prerelease == 'true' }}
+          generate_release_notes: true
+          files: |
+            dist/*.zip
+            dist/checksums.txt

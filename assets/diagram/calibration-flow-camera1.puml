@@ -1,0 +1,38 @@
+@startuml
+title PiTrac Camera 1 Calibration Flow
+
+skinparam shadowing false
+skinparam backgroundColor white
+skinparam activity {
+  BackgroundColor #F8F9FA
+  BorderColor #333333
+  ArrowColor #333333
+  FontColor #111111
+}
+
+start
+
+:Optional pre-check:\nPOST /api/calibration/ball-location/camera1;
+:Optional still capture:\nPOST /api/calibration/capture/camera1;
+:Validate image quality in\n~/LM_Shares/Images;
+
+:POST /api/calibration/auto/camera1;
+:CalibrationManager creates session\nfor expected keys:\n- gs_config.cameras.kCamera1FocalLength\n- gs_config.cameras.kCamera1Angles;
+:Launch pitrac_lm\n--system_mode=camera1AutoCalibrate\n(+ --run_single_pi in single mode);
+
+:Hybrid completion detection:\n1) API callbacks\n2) Process exit\n3) Timeout (40s);
+
+if (Both callback keys received?) then (yes)
+  :PUT /api/config updates camera1\nfocal length + angles;
+  :Write values into\n~/.pitrac/config/calibration_data.json;
+  :Regenerate\n~/.pitrac/config/generated_golf_sim_config.json;
+else (no)
+  :Fallback to process result\nand output parsing for failure markers;
+endif
+
+:Status exposed via\nGET /api/calibration/status;
+:Calibration values exposed via\nGET /api/calibration/data;
+:Validate resulting calibration images\nin ~/LM_Shares/Images;
+
+stop
+@enduml

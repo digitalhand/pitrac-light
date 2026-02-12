@@ -1,0 +1,8 @@
+{
+  "recommendations": [
+    "ms-vscode.cpptools-extension-pack",
+    "mesonbuild.mesonbuild",
+    "ms-python.python"
+  ],
+  "unwantedRecommendations": []
+}

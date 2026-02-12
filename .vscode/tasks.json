@@ -1,0 +1,74 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "meson setup (debug)",
+      "type": "shell",
+      "command": "if [ ! -d build/debug ]; then meson setup build/debug --buildtype debug; else meson setup build/debug --buildtype debug --reconfigure; fi",
+      "options": {
+        "cwd": "${workspaceFolder}/src"
+      },
+      "problemMatcher": [],
+      "detail": "Configure the Meson debug build directory for PiTrac"
+    },
+    {
+      "label": "meson setup (release)",
+      "type": "shell",
+      "command": "if [ ! -d build/release ]; then meson setup build/release --buildtype release; else meson setup build/release --buildtype release --reconfigure; fi",
+      "options": {
+        "cwd": "${workspaceFolder}/src"
+      },
+      "problemMatcher": [],
+      "detail": "Configure the Meson release build directory for PiTrac"
+    },
+    {
+      "label": "meson build (debug)",
+      "type": "shell",
+      "command": "ninja -C build/debug",
+      "dependsOn": "meson setup (debug)",
+      "options": {
+        "cwd": "${workspaceFolder}/src"
+      },
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": "$gcc",
+      "detail": "Build the PiTrac debug binary with Meson/Ninja"
+    },
+    {
+      "label": "meson build (release)",
+      "type": "shell",
+      "command": "ninja -C build/release",
+      "dependsOn": "meson setup (release)",
+      "options": {
+        "cwd": "${workspaceFolder}/src"
+      },
+      "group": "build",
+      "problemMatcher": "$gcc",
+      "detail": "Build the PiTrac release binary with Meson/Ninja"
+    },
+    {
+      "label": "meson test (debug)",
+      "type": "shell",
+      "command": "meson test -C build/debug --print-errorlogs",
+      "dependsOn": "meson build (debug)",
+      "options": {
+        "cwd": "${workspaceFolder}/src"
+      },
+      "group": "test",
+      "problemMatcher": "$gcc",
+      "detail": "Run the PiTrac debug test suite"
+    },
+    {
+      "label": "meson clean (debug)",
+      "type": "shell",
+      "command": "ninja -C build/debug clean",
+      "options": {
+        "cwd": "${workspaceFolder}/src"
+      },
+      "problemMatcher": [],
+      "detail": "Clean the PiTrac debug build artifacts"
+    }
+  ]
+}

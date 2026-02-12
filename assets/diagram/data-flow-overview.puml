@@ -1,0 +1,58 @@
+@startuml
+title PiTrac Data Flow (Config + Runtime Telemetry)
+
+skinparam shadowing false
+skinparam backgroundColor white
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+
+actor User
+participant "Browser UI" as UI
+participant "FastAPI\nserver.py" as API
+participant "ConfigurationManager" as CFG
+participant "~/.pitrac/config\nJSON files" as FILES
+participant "PiTracProcessManager" as PM
+participant "pitrac_lm\n(camera1/camera2)" as LM
+participant "ActiveMQ\nGolf.Sim topic" as MQ
+participant "ActiveMQListener\n+ ShotDataParser" as LISTENER
+participant "ShotDataStore" as STORE
+participant "~/LM_Shares/Images" as IMGDIR
+
+== Configuration Flow ==
+User -> UI : Change settings
+UI -> API : PUT /api/config/{key}
+API -> CFG : validate + set_config(key,value)
+CFG -> FILES : update user_settings.json\nor calibration_data.json
+API -> CFG : generate_golf_sim_config()
+CFG -> FILES : write generated_golf_sim_config.json
+API --> UI : success + requires_restart
+
+== Process Start Flow ==
+User -> UI : Start PiTrac
+UI -> API : POST /api/pitrac/start
+API -> PM : start()
+PM -> CFG : generate_golf_sim_config()\nload CLI/environment metadata
+PM -> LM : spawn camera2 then camera1\n(single-Pi), with config + env
+PM --> API : pids/status
+API --> UI : started
+
+== Runtime Shot Telemetry ==
+LM -> IMGDIR : write shot/status images
+LM -> MQ : publish GolfSimIPCMessage\n(msgpack payload; results base64-wrapped)
+LISTENER -> MQ : subscribe /topic/Golf.Sim (STOMP)
+MQ -> LISTENER : message frame
+LISTENER -> STORE : parse + update ShotData
+LISTENER -> API : broadcast websocket payload
+API -> UI : /ws JSON update\n(speed, spin, result_type, image paths)
+UI -> API : GET /images/{file}\nor /api/images/{file}
+API -> IMGDIR : read image file
+API --> UI : image bytes
+
+== Optional Calibration Callback Path ==
+LM -> API : PUT /api/config/\ngs_config.cameras.kCamera{N}FocalLength\nand kCamera{N}Angles
+API -> CFG : set calibration fields
+CFG -> FILES : update calibration_data.json
+API -> CFG : generate_golf_sim_config()
+CFG -> FILES : refresh generated_golf_sim_config.json
+
+@enduml

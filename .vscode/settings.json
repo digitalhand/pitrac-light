@@ -1,0 +1,13 @@
+{
+  "mesonbuild.sourceFolder": "${workspaceFolder}/src",
+  "mesonbuild.buildFolder": "${workspaceFolder}/src/build",
+  "mesonbuild.defaultBuildType": "debug",
+  "mesonbuild.mesonExecutablePath": "meson",
+  "mesonbuild.ninjaExecutablePath": "ninja",
+  "C_Cpp.default.configurationProvider": "mesonbuild.mesonbuild",
+  "C_Cpp.default.compileCommands": "${workspaceFolder}/src/build/debug/compile_commands.json",
+  "C_Cpp.errorSquiggles": "Enabled",
+  "files.associations": {
+    "meson.build": "meson"
+  }
+}

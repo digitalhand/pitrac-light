@@ -1,0 +1,78 @@
+@startuml
+title PiTrac Architecture (Services + Runtime Components)
+
+skinparam shadowing false
+skinparam backgroundColor white
+skinparam componentStyle rectangle
+skinparam packageStyle rectangle
+skinparam defaultTextAlignment center
+
+actor "User" as user
+
+node "Raspberry Pi OS (arm64)" as pi {
+  package "systemd Services" {
+    [pitrac-web.service] as websvc
+    [activemq.service] as amqsvc
+  }
+
+  package "Web Layer (Python FastAPI)" as web {
+    [Browser UI\nDashboard/Calibration/Testing] as browser
+    [REST API + WebSocket\nserver.py] as api
+    [PiTracProcessManager\n(pitrac_manager.py)] as procman
+    [CalibrationManager] as calman
+    [ActiveMQ Listener\n(STOMP 61613)] as stlistener
+    [ShotDataStore + Parser] as datastore
+    [ConfigurationManager] as cfgman
+  }
+
+  package "Core LM Runtime (C++ pitrac_lm)" as lm {
+    [Camera1 Process\nFSM + hit detection] as cam1
+    [Camera2 Process\ncapture/IPC responder] as cam2
+    [IPC System\n(OpenWire producer/consumer)] as ipc
+    [Simulator Interfaces\nGSPro TCP sockets] as simsock
+  }
+
+  database "ActiveMQ Broker\nOpenWire 61616 / STOMP 61613" as amq
+
+  folder "~/.pitrac/config" as cfgfiles
+  folder "~/.pitrac/logs + ~/.pitrac/run" as runtimedirs
+  folder "~/LM_Shares/Images" as images
+}
+
+cloud "Simulator PC" as simpc {
+  [GSPro] as gspro
+}
+
+user --> browser
+browser --> api : HTTP :8080\nREST + /ws
+
+websvc --> api : starts uvicorn main.py
+amqsvc --> amq : broker runtime
+
+api --> procman
+api --> calman
+api --> cfgman
+api --> stlistener
+stlistener --> datastore
+datastore --> api : websocket broadcasts
+
+procman --> cam1 : spawn/stop process
+procman --> cam2 : spawn/stop process\n(single-Pi mode)
+procman --> cfgman : generate config + CLI/env
+procman --> runtimedirs : PID/log files
+
+cfgman --> cfgfiles : user_settings.json\ncalibration_data.json\ngenerated_golf_sim_config.json
+
+cam1 --> ipc
+cam2 --> ipc
+ipc --> amq : topic Golf.Sim
+stlistener --> amq : subscribe /topic/Golf.Sim
+
+cam1 --> simsock
+simsock --> gspro : TCP 921
+
+cam1 --> images : shot/debug images
+cam2 --> images : capture images
+api --> images : /images + /api/images
+
+@enduml

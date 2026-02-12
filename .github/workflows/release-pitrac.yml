@@ -1,4 +1,4 @@
-name: Release PiTrac Core
+name: Release pitrac-light
 
 on:
   push:
@@ -112,6 +112,8 @@ jobs:
           )
 
       - name: Publish GitHub Release
+        id: publish
+        continue-on-error: true
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.meta.outputs.tag }}
@@ -121,3 +123,33 @@ jobs:
           generate_release_notes: true
           files: |
             dist/*.zip
+
+      - name: Verify release assets
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          api="${{ github.api_url }}/repos/${{ github.repository }}/releases/tags/${{ steps.meta.outputs.tag }}"
+          release_json="$(curl -fsSL \
+            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "${api}")"
+
+          missing=0
+          shopt -s nullglob
+          for file in dist/*.zip; do
+            name="$(basename "${file}")"
+            if printf '%s' "${release_json}" | grep -q "\"name\":\"${name}\""; then
+              echo "Verified asset: ${name}"
+            else
+              echo "Missing asset on release: ${name}" >&2
+              missing=1
+            fi
+          done
+
+          if [[ "${missing}" -ne 0 ]]; then
+            echo "Release asset verification failed." >&2
+            exit 1
+          fi

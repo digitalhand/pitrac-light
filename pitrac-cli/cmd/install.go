@@ -527,11 +527,11 @@ fi
 						"git", "python3", "python3-pip", "python3-graphviz", "python3-sphinx",
 						"python3-yaml", "python3-ply", "python3-jinja2",
 						"doxygen", "libevent-dev", "pybind11-dev", "libavdevice-dev",
-						"qtbase5-dev", "libqt5core5a", "libqt5gui5", "libqt5widgets5",
+						"qtbase5-dev",
 						"meson", "cmake", "ninja-build", "pkg-config", "build-essential",
 						"libglib2.0-dev", "libgstreamer-plugins-base1.0-dev",
 						"unzip", "wget", "ca-certificates",
-						"libboost-program-options1.81-dev", "libdrm-dev", "libexif-dev",
+						"libboost-program-options-dev", "libdrm-dev", "libexif-dev",
 					},
 				},
 				shellStep("build and install libcamera", `

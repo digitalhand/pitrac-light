@@ -31,42 +31,24 @@
 #include "colorsys.h"
 #include "golf_ball.h"
 #include "onnx_runtime_detector.hpp"
+#include "ball_detection/spin_analyzer.h"
+#include "ball_detection/color_filter.h"
+#include "ball_detection/roi_manager.h"
+#include "ball_detection/hough_detector.h"
+#include "ball_detection/ellipse_detector.h"
+#include "ball_detection/search_strategy.h"
+#include "ball_detection/ball_detector_facade.h"
 
 
 namespace golf_sim {
-
-// When comparing what are otherwise b/w images, this value indicates that
-// the comparison should not be performed on the particular pixel
-const uchar kPixelIgnoreValue = 128;
-
-// Holds one potential rotated golf ball candidate image and associated data
-struct RotationCandidate {
-    short index = 0;
-    cv::Mat img;
-    int x_rotation_degrees = 0; // All Rotations are in degrees
-    int y_rotation_degrees = 0;
-    int z_rotation_degrees = 0;
-    int pixels_examined = 0;
-    int pixels_matching = 0;
-    double score = 0;
-};
 
 class BallImageProc
 {
 public:
 
-    // The following are constants that control how the ball spin algorithm and the
-    // ball (circle) identification works.  They are set from the configuration .json file
-
-    static int kCoarseXRotationDegreesIncrement;
-    static int kCoarseXRotationDegreesStart;
-    static int kCoarseXRotationDegreesEnd;
-    static int kCoarseYRotationDegreesIncrement;
-    static int kCoarseYRotationDegreesStart;
-    static int kCoarseYRotationDegreesEnd;
-    static int kCoarseZRotationDegreesIncrement;
-    static int kCoarseZRotationDegreesStart;
-    static int kCoarseZRotationDegreesEnd;
+    // The following are constants that control how the ball (circle) identification works.
+    // They are set from the configuration .json file.
+    // Note: Spin analysis constants have been moved to SpinAnalyzer class.
 
     static double kPlacedBallCannyLower;
     static double kPlacedBallCannyUpper;
@@ -159,7 +141,7 @@ public:
     static double kPlacedNarrowingParam1;
 
 
-    static bool kLogIntermediateSpinImagesToFile;
+    // kLogIntermediateSpinImagesToFile moved to SpinAnalyzer
     static double kPlacedBallHoughDpParam1;
     static double kStrobedBallsHoughDpParam1;
     static bool kUseBestCircleRefinement;
@@ -187,8 +169,7 @@ public:
     static double kBestCircleIdentificationMinRadiusRatio;
     static double kBestCircleIdentificationMaxRadiusRatio;
 
-    static int kGaborMaxWhitePercent;
-    static int kGaborMinWhitePercent;
+    // Gabor filter constants moved to SpinAnalyzer
 
     // ONNX Detection Configuration
     static std::string kDetectionMethod;
@@ -206,18 +187,7 @@ public:
     static bool kONNXRuntimeAutoFallback;  // Enable automatic fallback to OpenCV DNN
     static int kONNXRuntimeThreads;  // Number of threads for ONNX Runtime (ARM optimization)
 
-    // This determines which potential 3D angles will be searched for spin processing
-    struct RotationSearchSpace {
-        int anglex_rotation_degrees_increment = 0;
-        int anglex_rotation_degrees_start = 0;
-        int anglex_rotation_degrees_end = 0;
-        int angley_rotation_degrees_increment = 0;
-        int angley_rotation_degrees_start = 0;
-        int angley_rotation_degrees_end = 0;
-        int anglez_rotation_degrees_increment = 0;
-        int anglez_rotation_degrees_start = 0;
-        int anglez_rotation_degrees_end = 0;
-    };
+    // RotationSearchSpace is now defined in ball_detection/spin_analyzer.h
 
     // The image in which to try to identify a golf ball - set prior to calling
     // the identification methods
@@ -278,7 +248,11 @@ public:
                    bool chooseLargestFinalBall=false,
                    bool report_find_failures =true );
 
-    bool BallIsPresent(const cv::Mat& img);
+    // --- ROI/movement methods (delegated to ROIManager) ---
+
+    bool BallIsPresent(const cv::Mat& img) {
+        return ROIManager::BallIsPresent(img);
+    }
 
     // Performs some iterative refinement to try to identify the best ball circle.
     static bool DetermineBestCircle(const cv::Mat& gray_image,
@@ -286,24 +260,29 @@ public:
                                     bool choose_largest_final_ball,
                                     GsCircle& final_circle);
 
+    static bool WaitForBallMovement(GolfSimCamera& c, cv::Mat& firstMovementImage, const GolfBall& ball, const long waitTimeSecs) {
+        return ROIManager::WaitForBallMovement(c, firstMovementImage, ball, waitTimeSecs);
+    }
 
-    // Waits for movement behind the ball (i.e., the club) and returns the first image containing the movement
-    // Ignores the first <X> seconds for movement.
-    static bool WaitForBallMovement(GolfSimCamera& c, cv::Mat& firstMovementImage, const GolfBall& ball, const long waitTimeSecs);
+    // --- Spin analysis methods (delegated to SpinAnalyzer) ---
 
     // Inputs are two balls and the images within which those balls exist
     // Returns the estimated amount of rotation in x, y, and z axes in degrees
-    static cv::Vec3d GetBallRotation(const cv::Mat& full_gray_image1, 
-                                    const GolfBall& ball1, 
-                                    const cv::Mat& full_gray_image2, 
-                                    const GolfBall& ball2);
+    static cv::Vec3d GetBallRotation(const cv::Mat& full_gray_image1,
+                                    const GolfBall& ball1,
+                                    const cv::Mat& full_gray_image2,
+                                    const GolfBall& ball2) {
+        return SpinAnalyzer::GetBallRotation(full_gray_image1, ball1, full_gray_image2, ball2);
+    }
 
-    static bool ComputeCandidateAngleImages(const cv::Mat& base_dimple_image, 
-                                    const RotationSearchSpace& search_space, 
-                                    cv::Mat& output_candidate_mat, 
-                                    cv::Vec3i& output_candidate_elements_mat_size, 
-                                    std::vector< RotationCandidate>& output_candidates, 
-                                    const GolfBall& ball);
+    static bool ComputeCandidateAngleImages(const cv::Mat& base_dimple_image,
+                                    const RotationSearchSpace& search_space,
+                                    cv::Mat& output_candidate_mat,
+                                    cv::Vec3i& output_candidate_elements_mat_size,
+                                    std::vector< RotationCandidate>& output_candidates,
+                                    const GolfBall& ball) {
+        return SpinAnalyzer::ComputeCandidateAngleImages(base_dimple_image, search_space, output_candidate_mat, output_candidate_elements_mat_size, output_candidates, ball);
+    }
 
     // Returns the index within candidates that has the best comparison.
     // Returns -1 on failure.
@@ -311,28 +290,43 @@ public:
                                             const cv::Mat* candidate_elements_mat,
                                             const cv::Vec3i* candidate_elements_mat_size,
                                             std::vector<RotationCandidate>* candidates,
-                                            std::vector<std::string>& comparison_csv_data);
+                                            std::vector<std::string>& comparison_csv_data) {
+        return SpinAnalyzer::CompareCandidateAngleImages(target_image, candidate_elements_mat, candidate_elements_mat_size, candidates, comparison_csv_data);
+    }
 
-    static cv::Vec2i CompareRotationImage(const cv::Mat& img1, const cv::Mat& img2, const int index = 0);
+    static cv::Vec2i CompareRotationImage(const cv::Mat& img1, const cv::Mat& img2, const int index = 0) {
+        return SpinAnalyzer::CompareRotationImage(img1, img2, index);
+    }
 
-    static cv::Mat MaskAreaOutsideBall(cv::Mat& ball_image, const GolfBall& ball, float mask_reduction_factor, const cv::Scalar& maskValue = (255, 255, 255));
+    static cv::Mat MaskAreaOutsideBall(cv::Mat& ball_image, const GolfBall& ball, float mask_reduction_factor, const cv::Scalar& maskValue = (255, 255, 255)) {
+        return SpinAnalyzer::MaskAreaOutsideBall(ball_image, ball, mask_reduction_factor, maskValue);
+    }
 
-    static void GetRotatedImage(const cv::Mat& gray_2D_input_image, const GolfBall& ball, const cv::Vec3i rotation, cv::Mat& outputGrayImg);
+    static void GetRotatedImage(const cv::Mat& gray_2D_input_image, const GolfBall& ball, const cv::Vec3i rotation, cv::Mat& outputGrayImg) {
+        SpinAnalyzer::GetRotatedImage(gray_2D_input_image, ball, rotation, outputGrayImg);
+    }
 
-    static bool RemoveSmallestConcentricCircles(std::vector<GsCircle>& circles);
-
-    // Img would be a constant reference, but we need to perform sub-imaging on it, so keep non-const for now
-    // reference_ball_circle is the circle around where the best approximation of where the ball is
+    // Ellipse detection methods (delegated to EllipseDetector)
     static cv::RotatedRect FindLargestEllipse(cv::Mat& img, const GsCircle& reference_ball_circle, int mask_radius);
-    static cv::RotatedRect FindBestEllipseFornaciari(cv::Mat& img, 
-                                                    const GsCircle& reference_ball_circle, 
+    static cv::RotatedRect FindBestEllipseFornaciari(cv::Mat& img,
+                                                    const GsCircle& reference_ball_circle,
                                                     int mask_radius);
 
-    cv::Mat GetColorMaskImage(const cv::Mat& hsvImage, const GolfBall& ball, double wideningAmount = 0.0);
+    // Hough detection methods (delegated to HoughDetector)
+    static bool RemoveSmallestConcentricCircles(std::vector<GsCircle>& circles);
+
+    // --- Color filter methods (delegated to ColorFilter) ---
+
+    cv::Mat GetColorMaskImage(const cv::Mat& hsvImage, const GolfBall& ball, double wideningAmount = 0.0) {
+        return ColorFilter::GetColorMaskImage(hsvImage, ball, wideningAmount);
+    }
+
     static cv::Mat GetColorMaskImage(const cv::Mat& hsvImage,
         const GsColorTriplet input_lowerHsv,
         const GsColorTriplet input_upperHsv,
-        double wideningAmount = 0.0);
+        double wideningAmount = 0.0) {
+        return ColorFilter::GetColorMaskImage(hsvImage, input_lowerHsv, input_upperHsv, wideningAmount);
+    }
 
     bool PreProcessStrobedImage(cv::Mat& search_image, BallSearchMode search_mode);
 
@@ -405,41 +399,14 @@ private:
 
     void RoundCircleData(std::vector<GsCircle>& circles);
 
-    static cv::Rect GetAreaOfInterest(const GolfBall& ball, const cv::Mat& img);
+    static cv::Rect GetAreaOfInterest(const GolfBall& ball, const cv::Mat& img) {
+        return ROIManager::GetAreaOfInterest(ball, img);
+    }
 
-    // Assumes the ball is fully within the image.
-    // Updates the input ball1 to reflect the new position of the ball within the isolated image we are returning.
-    static cv::Mat IsolateBall(const cv::Mat& img, GolfBall& ball);
-
-    static cv::Mat ReduceReflections(const cv::Mat& img, const cv::Mat& mask);
-
-    // Will set pixels that were over-saturated in the original_image to be the special "ignore" kPixelIgnoreValue value
-    // in the filtered_image.
-    static void RemoveReflections(const cv::Mat& original_image, cv::Mat& filtered_image, const cv::Mat& mask);
-
-    // If prior_binary_threshold < 0, then there is no prior threshold and a new one will be determined and returns 
-    // in the calibrated_binary_threshold variable.
-    static cv::Mat ApplyGaborFilterToBall(const cv::Mat& img, const GolfBall& ball, float& calibrated_binary_threshold, float prior_binary_threshold = -1);
-
-    // Applies the gabor filter with the specified parameters and returns the final image and white percentage
-    static cv::Mat ApplyTestGaborFilter(const cv::Mat& img_f32,
-        const int kernel_size, double sig, double lm, double th, double ps, double gm, float binary_threshold,
-        int& white_percent);
-
-    static cv::Mat CreateGaborKernel(int ks, double sig, double th, double lm, double gm, double ps);
-
-    static cv::Mat Project2dImageTo3dBall(const cv::Mat& image_gray, const GolfBall& ball, const cv::Vec3i& rotation_angles_degrees);
-
-    static void Unproject3dBallTo2dImage(const cv::Mat& src3D, cv::Mat& destination_image_gray, const GolfBall& ball);
-
-    // Given a grayscale (0-255) image and a percentage, this returns in brightness_cutoff from 0-255 
-    // that represents the value at which brightness_percentage of the pixels in the image are at or 
-    // below that value
-    static void GetImageCharacteristics(const cv::Mat& img,
-                                        const int brightness_percentage,
-                                        int& brightness_cutoff,
-                                        int& lowest_brightness,
-                                        int& highest_brightness);
+    // Spin analysis private methods have been moved to SpinAnalyzer class.
+    // See ball_detection/spin_analyzer.h for: IsolateBall, ReduceReflections, RemoveReflections,
+    // ApplyGaborFilterToBall, ApplyTestGaborFilter, CreateGaborKernel, Project2dImageTo3dBall,
+    // Unproject3dBallTo2dImage, GetImageCharacteristics
 
 };
 

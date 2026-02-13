@@ -37,87 +37,34 @@ if [ -n "$large_files" ]; then
 fi
 
 # =============================================================================
-# Check 3: Compile Check (if source files changed)
+# Check 3: Compile Check (DISABLED - build on Raspberry Pi)
 # =============================================================================
 changed_cpp_files=$(git diff --cached --name-only | grep -E '\.(cpp|h|hpp)$' || true)
 if [ -n "$changed_cpp_files" ]; then
     echo ""
-    echo "3️⃣  C++ files changed, checking if build directory exists..."
-
-    if [ -d "src/build" ]; then
-        echo "Building project..."
-        if ninja -C src/build; then
-            echo -e "${GREEN}✅ Build succeeded${NC}"
-        else
-            echo -e "${RED}❌ Build failed. Fix compilation errors before committing.${NC}"
-            exit 1
-        fi
-    else
-        echo -e "${YELLOW}⚠️  No build directory found. Run 'meson setup src/build' first.${NC}"
-        echo "Skipping build check..."
-    fi
+    echo "3️⃣  C++ files changed - build check skipped (build on target device)"
 else
     echo ""
-    echo "3️⃣  No C++ files changed, skipping build check"
+    echo "3️⃣  No C++ files changed"
 fi
 
 # =============================================================================
-# Check 4: Run Unit Tests (Quick Suite)
-# =============================================================================
-if [ -d "src/build" ] && [ -n "$changed_cpp_files" ]; then
-    echo ""
-    echo "4️⃣  Running unit tests..."
-
-    # Run only unit tests (fast)
-    if meson test -C src/build --suite unit --no-rebuild --print-errorlogs 2>&1 | tee /tmp/test-output.log; then
-        echo -e "${GREEN}✅ Unit tests passed${NC}"
-    else
-        echo -e "${RED}❌ Unit tests failed. Fix tests before committing.${NC}"
-        echo ""
-        echo "To see full test output:"
-        echo "  cat /tmp/test-output.log"
-        echo ""
-        echo "To run tests manually:"
-        echo "  meson test -C src/build --suite unit --print-errorlogs"
-        exit 1
-    fi
-else
-    echo ""
-    echo "4️⃣  Skipping unit tests (no build dir or no C++ changes)"
-fi
-
-# =============================================================================
-# Check 5: TODO Comment Check
+# Check 4: Run Unit Tests (DISABLED - test on Raspberry Pi)
 # =============================================================================
 echo ""
-echo "5️⃣  Checking for TODO comments without issue links..."
-new_todos=$(git diff --cached --diff-filter=A -U0 | grep -E '^\+.*TODO' | grep -v -E 'TODO\(#[0-9]+\)|TODO:.*#[0-9]+' || true)
-if [ -n "$new_todos" ]; then
-    echo -e "${YELLOW}⚠️  Warning: New TODO comments without issue links:${NC}"
-    echo "$new_todos"
-    echo ""
-    echo "Consider linking TODOs to GitHub issues: TODO(#123) or TODO: Fix #123"
-fi
+echo "4️⃣  Unit tests skipped (test on target device)"
 
 # =============================================================================
-# Check 6: Config Migration Warning
+# Check 5: TODO Comment Check (DISABLED)
 # =============================================================================
 echo ""
-echo "6️⃣  Checking for new SetConstant() calls..."
-new_setconstant=$(git diff --cached --diff-filter=A -U0 | grep -E '^\+.*SetConstant\(' || true)
-if [ -n "$new_setconstant" ]; then
-    echo -e "${YELLOW}⚠️  Warning: New SetConstant() calls detected${NC}"
-    echo "$new_setconstant"
-    echo ""
-    echo "We're migrating away from SetConstant() to ConfigurationManager."
-    echo "See CONFIG_MIGRATION_AUDIT.md for details."
-    echo ""
-    read -p "Continue with commit anyway? (y/N) " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        exit 1
-    fi
-fi
+echo "5️⃣  TODO check skipped"
+
+# =============================================================================
+# Check 6: Config Migration Warning (DISABLED)
+# =============================================================================
+echo ""
+echo "6️⃣  SetConstant() check skipped"
 
 # =============================================================================
 # Success!

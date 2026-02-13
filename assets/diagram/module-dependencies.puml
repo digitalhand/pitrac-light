@@ -3,65 +3,78 @@ skinparam componentStyle rectangle
 skinparam backgroundColor white
 skinparam defaultTextAlignment center
 
-title PiTrac Launch Monitor - Module Dependencies
+title PiTrac-Light Module Dependencies (Refactored)
 
-package "PiTrac Launch Monitor" {
+package "Entrypoints" #EEEEEE {
+  component [pitrac-cli\n(Go)] as cli #E5F5FF
+  component [RunScripts\n(Bash)] as scripts #E5F5FF
+  component [pitrac_lm\n(lm_main.cpp)] as lm #E5F5FF
+}
 
-  package "Bounded Contexts" #EEEEEE {
-    component [Camera] as Camera #E5E5FF
-    component [ImageAnalysis] as ImageAnalysis #FFE5FF
-  }
-
-  package "Infrastructure" #EEEEEE {
-    component [encoder] as encoder #FFE5E5
-    component [image] as image #FFE5E5
-    component [output] as output #FFE5E5
-    component [post_processing_stages] as post_processing_stages #FFE5E5
-    component [preview] as preview #FFE5E5
-  }
-
-  package "Simulator Integration" #EEEEEE {
-    component [sim/common] as sim_common #FFFFD0
-    component [sim/gspro] as sim_gspro #FFFFD0
-  }
-
+package "Meson Runtime Libraries" #EEEEEE {
   component [core] as core #FFE5E5
-  component [tests] as tests #F0F0F0
+  component [vision\n(ball/image processing)] as vision #FFE5E5
+  component [sim/common] as sim_common #FFFFD0
+  component [sim/gspro] as sim_gspro #FFFFD0
   component [utils] as utils #E5F5E5
 }
+
+package "Camera Pipeline Modules" #EEEEEE {
+  component [encoder] as encoder #FFF2E5
+  component [image] as image #FFF2E5
+  component [output] as output #FFF2E5
+  component [preview] as preview #FFF2E5
+  component [post_processing_stages] as post #FFF2E5
+}
+
+package "Bounded Contexts (Standalone CMake)" #EEEEEE {
+  component [Camera] as camera_bc #F5E5FF
+  component [ImageAnalysis] as image_bc #F5E5FF
+}
+
+package "Verification" #EEEEEE {
+  component [src/tests\n(Boost.Test / CTest)] as tests #F0F0F0
+}
+
+cli ..> lm : launches modes\nand service workflows
+scripts ..> lm : direct execution
+
+lm --> core
+lm --> vision
+lm --> sim_common
+lm --> sim_gspro
+lm --> utils
 
 core --> encoder
 core --> image
 core --> output
-core --> post_processing_stages
 core --> preview
-core --> sim_common
-core --> sim_gspro
+core --> post
+
 core --> utils
-encoder --> core
-image --> core
-output --> core
-post_processing_stages --> core
-post_processing_stages --> image
-post_processing_stages --> utils
-preview --> core
-sim_common --> core
-sim_common --> sim_gspro
+vision --> utils
 sim_common --> utils
-sim_gspro --> core
 sim_gspro --> sim_common
 sim_gspro --> utils
+
 tests --> core
+tests --> vision
+tests --> sim_common
+tests --> sim_gspro
 tests --> utils
-utils --> core
+
+tests --> camera_bc : standalone CMake tests
+tests --> image_bc : standalone CMake tests
 
 legend right
-  |= Color |= Type |
-  | <#E5E5FF> | Bounded Context |
-  | <#E5F5E5> | Utilities |
-  | <#FFE5E5> | Infrastructure |
-  | <#FFFFD0> | Simulator Integration |
-  | <#F0F0F0> | Testing |
+  |= Color |= Role |
+  | <#E5F5FF> | Entrypoint |
+  | <#FFE5E5> | Runtime library |
+  | <#FFF2E5> | Camera pipeline module |
+  | <#FFFFD0> | Simulator integration |
+  | <#E5F5E5> | Shared utility |
+  | <#F5E5FF> | Bounded context |
+  | <#F0F0F0> | Test surface |
 endlegend
 
 @enduml

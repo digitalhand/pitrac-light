@@ -29,7 +29,16 @@ Same C++ code base as https://github.com/PiTracLM/PiTrac. However, this project 
 - [Known Issues](#known-issues)
 - [System Sequence Diagram](#system-sequence-diagram)
 - [Architecture Diagrams](#architecture-diagrams)
+  - [Runtime Architecture](#runtime-architecture)
+  - [Data Flow Overview](#data-flow-overview)
+  - [Ball Hit Flow](#ball-hit-flow)
+  - [Hardware Topology](#hardware-topology)
+  - [Module Dependencies](#module-dependencies)
+  - [Calibration Flows](#calibration-flows)
 - [Simulator Data](#simulator-data)
+- [Licensing](#licensing)
+  - [License Files](#license-files)
+  - [File-Level SPDX Rules](#file-level-spdx-rules)
 - [Additional Resources](#additional-resources)
 
 ## What this is not 
@@ -420,3 +429,81 @@ See [`.github/workflows/ci.yml`](.github/workflows/ci.yml) for CI configuration.
 ## Known Issues
 
 - **ONNX Runtime Eigen hash mismatch** – The upstream `onnxruntime-1.17.3` source bundles Eigen via `cmake/external/eigen.cmake`, but the published hash no longer matches the live tarball. When the `pitrac-cli install` command or a manual build run `cmake`, the fetch step fails with a message similar to `HASH mismatch for file: eigen-...`. To work around this, edit `~/src/onnxruntime-1.17.3/cmake/external/eigen.cmake` (or wherever you unpacked the sources) and update the `URL_HASH` line to `SHA1=32b145f525a8308d7ab1c09388b2e288312d8eba`, then re-run the build. Track the upstream ONNX Runtime issue for a permanent fix.
+
+## System Sequence Diagram
+
+High-level lifecycle from startup through shot processing:
+
+![PiTrac system sequence](assets/images/basic_ssd.png)
+
+## Architecture Diagrams
+
+### Runtime Architecture
+
+Current refactored runtime view:
+
+![PiTrac runtime architecture](assets/images/architecture-overview.png)
+
+### Data Flow Overview
+
+Configuration, runtime IPC, simulator send path, and artifact writes:
+
+![PiTrac data flow overview](assets/images/data-flow-overview.png)
+
+### Ball Hit Flow
+
+Camera1 detection to camera2 capture to simulator output:
+
+![PiTrac ball hit flow](assets/images/golf-simulator-ball-hit-flow.png)
+
+### Hardware Topology
+
+Single-Pi primary hardware topology with optional legacy dual-Pi support:
+
+![PiTrac hardware topology](assets/images/hardware-topology.png)
+
+### Module Dependencies
+
+Current module dependency map for runtime libraries and entrypoints:
+
+![PiTrac module dependencies](assets/images/module-dependencies.png)
+
+### Calibration Flows
+
+Auto-calibration process for each camera:
+
+![PiTrac camera1 calibration flow](assets/images/calibration-flow-camera1.png)
+
+![PiTrac camera2 calibration flow](assets/images/calibration-flow-camera2.png)
+
+## Simulator Data
+
+- Runtime shot results are emitted through the ActiveMQ topic `Golf.Sim`.
+- GSPro integration uses `sim/common` and `sim/gspro` with TCP output to GSPro (default port `921`).
+- Result/debug images are written to the configured web share and logging directories (for example `~/LM_Shares/Images` and `~/PiTracLogs`).
+
+## Licensing
+
+This repository is mixed-license and uses file-level SPDX identifiers.
+
+### License Files
+
+- MIT: [`LICENSE`](LICENSE)
+- GPL-2.0-only: [`LICENSES/GPL-2.0-only.txt`](LICENSES/GPL-2.0-only.txt)
+- BSD-2-Clause: [`LICENSES/BSD-2-Clause.txt`](LICENSES/BSD-2-Clause.txt)
+- Repository notice: [`NOTICE`](NOTICE)
+
+### File-Level SPDX Rules
+
+- The SPDX header on each file is the source of truth for that file's license.
+- Preserve upstream/third-party notices in derived files.
+- Net-new Digital Hand code should use MIT headers.
+- Contributor policy: [`LICENSE_POLICY.md`](LICENSE_POLICY.md)
+- Header templates: [`COPYRIGHT_HEADERS.md`](COPYRIGHT_HEADERS.md)
+
+## Additional Resources
+
+- Build internals: [`BUILD_SYSTEM.md`](BUILD_SYSTEM.md)
+- Developer workflows: [`DEVELOPER_QUICKSTART.md`](DEVELOPER_QUICKSTART.md)
+- Hook setup: [`hooks/README.md`](hooks/README.md)
+- Diagram sources: `assets/diagram/*.puml`

@@ -1,5 +1,5 @@
 @startuml
-title PiTrac Camera 2 Calibration Flow
+title Camera 2 Auto-Calibration Flow (Current Runtime)
 
 skinparam shadowing false
 skinparam backgroundColor white
@@ -12,38 +12,28 @@ skinparam activity {
 
 start
 
-:Optional pre-check:\nPOST /api/calibration/ball-location/camera2;
-:Optional still capture:\nPOST /api/calibration/capture/camera2;
-:Validate image quality in\n~/LM_Shares/Images;
+:Ensure runtime prerequisites:\n- pitrac-cli validate env\n- pitrac-cli service broker start;
+:Optional image sanity check:\npitrac-cli run still --camera 2;
 
-:POST /api/calibration/auto/camera2;
-:CalibrationManager creates session\nfor expected keys:\n- gs_config.cameras.kCamera2FocalLength\n- gs_config.cameras.kCamera2Angles;
+:Run auto-calibration:\npitrac-cli run auto-calibrate --camera 2;
+:CLI launches pitrac_lm with\n--system_mode camera2AutoCalibrate\nand common args;
 
-if (Single-Pi mode?) then (yes)
-  :Start background pitrac_lm:\n--run_single_pi --system_mode runCam2ProcessForPi1Processing;
-  :Wait ~4s for background init;
-  :Start foreground pitrac_lm:\n--system_mode camera2AutoCalibrate;
+:pitrac_lm startup:\nload config + init camera + IPC + GPIO;
+
+:Capture camera2 calibration frames;
+:Compute average focal length;
+
+if (Ball detection / focal length valid?) then (yes)
+  :Determine camera angles;
+  :Update config tree keys:\n- gs_config.cameras.kCamera2FocalLength\n- gs_config.cameras.kCamera2Angles;
+  :Backup current config file;
+  :Write updated golf_sim_config.json;
+  :Save calibration artifacts\nto logging/image directories;
+  :Exit success;
 else (no)
-  :Run standard (single-process)\ncamera2 calibration fallback;
+  :Abort calibration with error logs;
+  :Keep previous effective values;
 endif
-
-:Hybrid completion detection:\n1) API callbacks\n2) Process exit\n3) Timeout (140s);
-
-if (Both callback keys received?) then (yes)
-  :PUT /api/config updates camera2\nfocal length + angles;
-  :Write values into\n~/.pitrac/config/calibration_data.json;
-  :Regenerate\n~/.pitrac/config/generated_golf_sim_config.json;
-else (no)
-  :Fallback to process result\nand output parsing for failure markers;
-endif
-
-if (Background process running?) then (yes)
-  :Terminate camera2 background process;
-endif
-
-:Status exposed via\nGET /api/calibration/status;
-:Calibration values exposed via\nGET /api/calibration/data;
-:Validate resulting calibration images\nin ~/LM_Shares/Images;
 
 stop
 @enduml

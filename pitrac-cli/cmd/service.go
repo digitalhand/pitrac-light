@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026, Digital Hand LLC.
+
 package cmd
 
 import (
@@ -317,6 +320,8 @@ func runBrokerSetup(cmd *cobra.Command, args []string) error {
 INSTALL_DIR="${INSTALL_DIR:-/opt/apache-activemq}"
 JETTY_CONFIG="${INSTALL_DIR}/conf/jetty.xml"
 SERVICE_FILE="/etc/systemd/system/activemq.service"
+ACTIVEMQ_USER="${ACTIVEMQ_USER:-activemq}"
+ACTIVEMQ_GROUP="${ACTIVEMQ_GROUP:-${ACTIVEMQ_USER}}"
 
 if [ -f "${JETTY_CONFIG}" ]; then
   sudo cp -n "${JETTY_CONFIG}" "${JETTY_CONFIG}.ORIGINAL" || true
@@ -326,6 +331,19 @@ if [ -f "${JETTY_CONFIG}" ]; then
   fi
   sudo sed -i "s/127\.0\.0\.1/${PI_IP}/g" "${JETTY_CONFIG}" || true
 fi
+
+# Ensure the runtime user exists and has write access to broker runtime dirs.
+if ! id "${ACTIVEMQ_USER}" >/dev/null 2>&1; then
+  if getent group "${ACTIVEMQ_GROUP}" >/dev/null 2>&1; then
+    sudo useradd --system --home "${INSTALL_DIR}" --shell /usr/sbin/nologin -g "${ACTIVEMQ_GROUP}" "${ACTIVEMQ_USER}"
+  else
+    sudo useradd --system --home "${INSTALL_DIR}" --shell /usr/sbin/nologin "${ACTIVEMQ_USER}"
+  fi
+fi
+
+sudo mkdir -p "${INSTALL_DIR}/data" "${INSTALL_DIR}/tmp" "${INSTALL_DIR}/log"
+sudo chown -R "${ACTIVEMQ_USER}:${ACTIVEMQ_GROUP}" "${INSTALL_DIR}/data" "${INSTALL_DIR}/tmp" "${INSTALL_DIR}/log"
+sudo chmod -R u+rwX "${INSTALL_DIR}/data" "${INSTALL_DIR}/tmp" "${INSTALL_DIR}/log"
 
 if ! command -v systemctl >/dev/null 2>&1; then
   echo "systemctl not found; skipping service setup."

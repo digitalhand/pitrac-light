@@ -1,5 +1,5 @@
 @startuml
-title PiTrac Hardware Topology (Typical Pi 5 Build)
+title PiTrac Hardware Topology (Single-Pi Primary)
 
 skinparam shadowing false
 skinparam backgroundColor white
@@ -10,11 +10,11 @@ node "PiTrac Enclosure" as enclosure {
   package "Power Path" {
     [AC Inlet\n(C14 + Fuse)] as ac_in
     [5V PSU\n(Meanwell LRS-75-5)] as psu5v
-    [Connector Board V2\n(Dual Pi5 board)] as cb
+    [Connector Board V2\n(power + trigger distribution)] as cb
   }
 
   package "Compute + Vision" {
-    [Raspberry Pi 5\n(main runtime)] as pi5
+    [Raspberry Pi 5\n(primary runtime)] as pi5
     [Camera 1\n(IMX296 global shutter)\nTeed-ball camera] as cam1
     [Camera 2\n(IMX296 global shutter)\nFlight camera] as cam2
   }
@@ -24,8 +24,8 @@ node "PiTrac Enclosure" as enclosure {
     [Visible LED Strip\n(tee-area lighting)] as led_strip
   }
 
-  package "Optional / Legacy" {
-    [Second Raspberry Pi 5\n(legacy dual-Pi path)] as pi5b
+  package "Optional Legacy" {
+    [Second Raspberry Pi 5\n(dual-Pi deployments)] as pi5b
   }
 }
 
@@ -35,34 +35,33 @@ cloud "Network / Simulator Side" as net {
 }
 
 ac_in --> psu5v : AC mains
-psu5v --> cb : +5V input (J1)
-cb --> pi5 : +5V USB-C power (J3/J4)
+psu5v --> cb : +5V input
+cb --> pi5 : +5V power
 
 pi5 --> cam1 : CSI ribbon cable
 pi5 --> cam2 : CSI ribbon cable
-pi5 --> cam2 : trigger/control pair\n(for external-trigger workflow)
+pi5 --> cam2 : trigger/control pair
 
-pi5 --> cb : GPIO control harness (J7)\n(strobe/control signaling)
-cb --> ir_strobe : regulated HV output (J2)\nboost + current limit + duty-cycle protection
-
-psu5v --> led_strip : USB/5V lighting power
+pi5 --> cb : GPIO control harness\n(strobe/control signaling)
+cb --> ir_strobe : regulated strobe output
+psu5v --> led_strip : 5V lighting power
 
 pi5 --> lan : Ethernet/Wi-Fi
-lan --> simpc : simulator data path
+lan --> simpc : GSPro data path
 
-cb ..> pi5b : optional second Pi power/control\n(older dual-Pi enclosure variants)
+cb ..> pi5b : optional second Pi power/control
 
 note bottom of cb
 Connector Board V2 functions:
 - Shared 5V distribution
-- Boost converter (~15V to ~42V adjustable)
-- LED current limiting
-- Hardware-enforced ~10% duty cycle protection
+- Boost conversion for strobe path
+- Current limiting
+- Duty-cycle protection
 end note
 
 note bottom of ir_strobe
-Do not wire strobe LED directly to raw PSU output;
-drive via Connector Board output stage.
+Drive strobe through connector-board output stage,
+not directly from raw PSU lines.
 end note
 
 @enduml

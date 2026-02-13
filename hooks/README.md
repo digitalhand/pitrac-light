@@ -11,8 +11,8 @@ Runs before each commit to ensure code quality and prevent broken commits.
 **Checks performed:**
 1. ✅ **Trailing whitespace** - Prevents accidental whitespace
 2. ✅ **Large file detection** - Warns about files >5MB (suggests Git LFS)
-3. ✅ **Compilation check** - Ensures C++ code compiles (if build dir exists)
-4. ✅ **Unit tests** - Runs fast unit tests for changed C++ files
+3. ⏭️  **Compilation check** - DISABLED (build on Raspberry Pi target device)
+4. ⏭️  **Unit tests** - DISABLED (test on Raspberry Pi target device)
 5. ⚠️  **TODO comments** - Warns about TODOs without issue links
 6. ⚠️  **SetConstant() migration** - Warns about new SetConstant() calls (we're migrating away)
 
@@ -51,12 +51,9 @@ git commit -m "Your commit message"
 
 2️⃣  Checking for large files (>5MB)...
 
-3️⃣  C++ files changed, checking if build directory exists...
-Building project...
-✅ Build succeeded
+3️⃣  C++ files changed - build check skipped (build on target device)
 
-4️⃣  Running unit tests...
-✅ Unit tests passed
+4️⃣  Unit tests skipped (test on target device)
 
 5️⃣  Checking for TODO comments without issue links...
 
@@ -80,22 +77,20 @@ Use `--no-verify` only when:
 - Committing work-in-progress to a feature branch
 - You've manually verified all checks pass
 
+## Development Workflow
+
+**Note:** Build and test checks are disabled in this hook because PiTrac is developed on a workstation but built/tested on the Raspberry Pi target device.
+
+**Recommended workflow:**
+1. Commit changes locally (pre-commit hook runs basic checks)
+2. Push to repository or copy to Raspberry Pi
+3. Build on Raspberry Pi: `meson setup build && ninja -C build`
+4. Run tests on Raspberry Pi: `meson test -C build`
+5. Validate with real hardware
+
+This ensures the code is tested in the actual deployment environment.
+
 ## Troubleshooting
-
-### "Build failed" - but code compiles manually
-
-```bash
-# Rebuild to sync build directory
-cd src
-ninja -C build
-```
-
-### "Unit tests failed" - but tests pass manually
-
-```bash
-# Run tests manually to see full output
-meson test -C src/build --suite unit --print-errorlogs
-```
 
 ### Hook doesn't run
 
@@ -106,18 +101,6 @@ ls -la .git/hooks/pre-commit
 # Reinstall if missing
 ./hooks/install.sh
 ```
-
-### Hook runs too slowly
-
-The pre-commit hook is optimized to run only relevant checks:
-- Only runs build/tests if C++ files changed
-- Only runs unit tests (not integration or approval)
-- Uses `--no-rebuild` for tests
-
-If still slow:
-- Check if incremental builds are working: `ninja -C src/build -t compdb`
-- Ensure SSD is used for build directory
-- Consider adjusting timeout in hook script
 
 ## Customization
 

@@ -23,6 +23,7 @@ A Go-based command line tool for PiTrac installation, environment setup, and run
 - [Install Override Variables](#install-override-variables)
 - [Output and Styling](#output-and-styling)
 - [Troubleshooting](#troubleshooting)
+  - [Broker starts but port `61616` is not reachable](#broker-starts-but-port-61616-is-not-reachable)
 
 ## Overview
 `pitrac-cli` replaces legacy setup scripting with a single CLI for:
@@ -299,7 +300,7 @@ pitrac-cli service broker status   # check broker systemd state + ports 61616/81
 pitrac-cli service broker setup    # create systemd unit + configure remote access
 ```
 
-`broker setup` creates `/etc/systemd/system/activemq.service`, updates `/opt/apache-activemq/conf/jetty.xml` to bind to the Pi's IP, and enables the service at boot.
+`broker setup` creates `/etc/systemd/system/activemq.service`, updates `/opt/apache-activemq/conf/jetty.xml` to bind to the Pi's IP, ensures ActiveMQ runtime user and writable broker runtime directories (`data`, `tmp`, `log`), and enables the service at boot.
 
 #### Launch-monitor (LM) subgroup
 
@@ -358,6 +359,8 @@ BUILD_JOBS=4 pitrac-cli install onnx --yes
 - `ACTIVEMQ_URL` (default archive URL built from version)
 - `INSTALL_DIR` (default `/opt/apache-activemq`)
 - `FORCE` (`1` to reinstall/replace existing)
+- `ACTIVEMQ_USER` (default `activemq`)
+- `ACTIVEMQ_GROUP` (default same as `ACTIVEMQ_USER`)
 
 ### `activemq-cpp`
 - `FORCE` (`1` to rebuild even if installed)
@@ -399,6 +402,25 @@ The CLI uses symbols in status output:
 Disable ANSI colors by setting `NO_COLOR=1`.
 
 ## Troubleshooting
+
+### Broker starts but port `61616` is not reachable
+If `pitrac-cli service broker start` reports timeout waiting for `61616`, the broker process may be failing before bind (commonly due to runtime directory ownership/permissions).
+
+Re-apply broker setup (it now repairs runtime ownership/permissions):
+
+```bash
+pitrac-cli service broker setup
+pitrac-cli service broker start
+```
+
+Check service and broker logs:
+
+```bash
+sudo systemctl status activemq -l --no-pager
+sudo journalctl -u activemq -n 200 --no-pager
+sudo tail -n 200 /opt/apache-activemq/data/activemq.log
+sudo ss -ltnp | grep 61616
+```
 
 ### `Exec format error` when running `./pitrac-cli`
 Usually means stale/cross-compiled binary.

@@ -72,6 +72,8 @@ func printStyledHelp() {
 				{"install <target>", "Install a dependency (--dry-run, --yes)"},
 				{"install base", "Install base profile (4 targets)"},
 				{"install full", "Install all dependencies"},
+				{"install clean", "Show reclaimable build artifacts"},
+				{"install clean all", "Remove all build artifacts"},
 			},
 		},
 		{

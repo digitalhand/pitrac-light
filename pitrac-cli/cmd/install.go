@@ -273,21 +273,27 @@ func buildInstallTargets() []installTarget {
 			id:          "boost",
 			description: "Install Boost development headers/libs",
 			steps: []commandStep{
-				{
-					name: "install boost",
-					cmd:  []string{"sudo", "apt", "install", "-y", "libboost-all-dev"},
-				},
+				shellStep("install boost", `
+FORCE="${FORCE:-0}"
+if dpkg -s libboost-all-dev >/dev/null 2>&1 && [ "${FORCE}" != "1" ]; then
+  echo "libboost-all-dev already installed. Set FORCE=1 to reinstall."
+  exit 0
+fi
+sudo apt install -y libboost-all-dev
+`),
 			},
 		},
 		{
 			id:          "java",
 			description: "Install Java runtime/toolchain (21+ from apt)",
 			steps: []commandStep{
-				{
-					name: "apt update",
-					cmd:  []string{"sudo", "apt", "update"},
-				},
 				shellStep("install openjdk 21", `
+FORCE="${FORCE:-0}"
+if dpkg -s openjdk-21-jdk >/dev/null 2>&1 && [ "${FORCE}" != "1" ]; then
+  echo "openjdk-21-jdk already installed. Set FORCE=1 to reinstall."
+  exit 0
+fi
+sudo apt update
 if apt-cache show "openjdk-21-jdk" >/dev/null 2>&1; then
   echo "Installing openjdk-21-jdk"
   sudo apt install -y "openjdk-21-jdk"
@@ -302,10 +308,14 @@ fi
 			id:          "msgpack-cxx",
 			description: "Install MessagePack C++ headers from distro",
 			steps: []commandStep{
-				{
-					name: "install msgpack package",
-					cmd:  []string{"sudo", "apt", "install", "-y", "libmsgpack-dev"},
-				},
+				shellStep("install msgpack package", `
+FORCE="${FORCE:-0}"
+if dpkg -s libmsgpack-dev >/dev/null 2>&1 && [ "${FORCE}" != "1" ]; then
+  echo "libmsgpack-dev already installed. Set FORCE=1 to reinstall."
+  exit 0
+fi
+sudo apt install -y libmsgpack-dev
+`),
 			},
 		},
 		{
@@ -673,11 +683,22 @@ OPENCV_VERSION="${REQUIRED_OPENCV_VERSION:-4.12.0}"
 OPENCV_DIR="${OPENCV_DIR:-$HOME/opencv-${OPENCV_VERSION}}"
 OPENCV_CONTRIB_DIR="${OPENCV_CONTRIB_DIR:-$HOME/opencv_contrib-${OPENCV_VERSION}}"
 ENABLE_PYTHON="${OPENCV_ENABLE_PYTHON:-0}"
+FORCE="${FORCE:-0}"
 DEFAULT_JOBS=4
 if command -v nproc >/dev/null 2>&1; then
   DEFAULT_JOBS="$(nproc)"
 fi
 BUILD_JOBS="${BUILD_JOBS:-${DEFAULT_JOBS}}"
+
+installed_ver="$(pkg-config --modversion opencv4 2>/dev/null || true)"
+if [ -n "${installed_ver}" ] && [ "${installed_ver}" = "${OPENCV_VERSION}" ] && [ "${FORCE}" != "1" ]; then
+  echo "OpenCV ${installed_ver} already installed (matches ${OPENCV_VERSION}). Set FORCE=1 to rebuild."
+  exit 0
+fi
+
+if [ -n "${installed_ver}" ] && [ "${installed_ver}" != "${OPENCV_VERSION}" ]; then
+  echo "OpenCV ${installed_ver} found but ${OPENCV_VERSION} requested. Proceeding with build."
+fi
 
 if [ ! -d "${OPENCV_DIR}" ]; then
   git clone https://github.com/opencv/opencv.git "${OPENCV_DIR}"
@@ -741,11 +762,24 @@ ORT_REPO_URL="${ORT_REPO_URL:-https://github.com/microsoft/onnxruntime.git}"
 ORT_SRC_DIR="${ORT_SRC_DIR:-$HOME/src/onnxruntime-${ORT_VERSION}}"
 BUILD_CONFIG="${BUILD_CONFIG:-Release}"
 BUILD_WHEEL="${BUILD_WHEEL:-0}"
+FORCE="${FORCE:-0}"
 DEFAULT_JOBS=4
 if command -v nproc >/dev/null 2>&1; then
   DEFAULT_JOBS="$(nproc)"
 fi
 BUILD_JOBS="${BUILD_JOBS:-${DEFAULT_JOBS}}"
+
+if ldconfig -p 2>/dev/null | grep -q "libonnxruntime" && [ "${FORCE}" != "1" ]; then
+  installed_ver="$(ldconfig -p 2>/dev/null | grep 'libonnxruntime\.so\.' | head -1 | sed 's/.*\.so\.//')"
+  if [ -n "${installed_ver}" ] && [ "${installed_ver}" = "${ORT_VERSION}" ]; then
+    echo "ONNX Runtime ${ORT_VERSION} already installed. Set FORCE=1 to rebuild."
+    exit 0
+  fi
+  echo "ONNX Runtime found (${installed_ver:-unknown version}) but ${ORT_VERSION} requested."
+  if [ -z "${installed_ver}" ]; then
+    echo "Could not determine installed version. Set FORCE=1 to rebuild, or continuing with build."
+  fi
+fi
 
 export CMAKE_BUILD_PARALLEL_LEVEL="${BUILD_JOBS}"
 export MAKEFLAGS="-j${BUILD_JOBS}"

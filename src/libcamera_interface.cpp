@@ -1489,6 +1489,7 @@ bool WaitForCam2Trigger(cv::Mat& return_image) {
             options->contrast = LibCameraInterface::kCamera2Contrast;
         }
 
+        options->awb = "indoor";
         options->immediate = true;
         options->timeout.set("0ms");  // Wait forever for external trigger
         const CameraHardware::CameraModel  camera_model = GolfSimCamera::kSystemSlot1CameraType;

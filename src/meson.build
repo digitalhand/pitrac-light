@@ -103,6 +103,7 @@ subdir('image')
 subdir('output')
 subdir('preview')
 subdir('post_processing_stages')
+subdir('ball_detection')
 
 
 # Generate a version string.
@@ -170,6 +171,8 @@ vision_sources = [
     'colorsys.cpp',
     'golf_ball.cpp',
 ]
+
+vision_sources += ball_detection_sources
 
 core_sources = [
     'gs_globals.cpp',

@@ -1,5 +1,5 @@
 @startuml
-title PiTrac Camera 1 Calibration Flow
+title Camera 1 Auto-Calibration Flow (Current Runtime)
 
 skinparam shadowing false
 skinparam backgroundColor white
@@ -12,27 +12,28 @@ skinparam activity {
 
 start
 
-:Optional pre-check:\nPOST /api/calibration/ball-location/camera1;
-:Optional still capture:\nPOST /api/calibration/capture/camera1;
-:Validate image quality in\n~/LM_Shares/Images;
+:Ensure runtime prerequisites:\n- pitrac-cli validate env\n- pitrac-cli service broker start;
+:Optional image sanity check:\npitrac-cli run still --camera 1;
 
-:POST /api/calibration/auto/camera1;
-:CalibrationManager creates session\nfor expected keys:\n- gs_config.cameras.kCamera1FocalLength\n- gs_config.cameras.kCamera1Angles;
-:Launch pitrac_lm\n--system_mode=camera1AutoCalibrate\n(+ --run_single_pi in single mode);
+:Run auto-calibration:\npitrac-cli run auto-calibrate --camera 1;
+:CLI launches pitrac_lm with\n--system_mode camera1AutoCalibrate\nand common args;
 
-:Hybrid completion detection:\n1) API callbacks\n2) Process exit\n3) Timeout (40s);
+:pitrac_lm startup:\nload config + init camera + IPC + GPIO;
 
-if (Both callback keys received?) then (yes)
-  :PUT /api/config updates camera1\nfocal length + angles;
-  :Write values into\n~/.pitrac/config/calibration_data.json;
-  :Regenerate\n~/.pitrac/config/generated_golf_sim_config.json;
+:Capture multiple samples\n(kNumberPicturesForFocalLengthAverage);
+:Compute average focal length;
+
+if (Ball detection / focal length valid?) then (yes)
+  :Determine camera angles;
+  :Update config tree keys:\n- gs_config.cameras.kCamera1FocalLength\n- gs_config.cameras.kCamera1Angles;
+  :Backup current config file;
+  :Write updated golf_sim_config.json;
+  :Save calibration artifacts\nto logging/image directories;
+  :Exit success;
 else (no)
-  :Fallback to process result\nand output parsing for failure markers;
+  :Abort calibration with error logs;
+  :Keep previous effective values;
 endif
-
-:Status exposed via\nGET /api/calibration/status;
-:Calibration values exposed via\nGET /api/calibration/data;
-:Validate resulting calibration images\nin ~/LM_Shares/Images;
 
 stop
 @enduml

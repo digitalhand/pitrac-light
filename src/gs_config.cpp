@@ -227,7 +227,7 @@ bool GolfSimConfiguration::ReadValues() {
     std::string slot1_env = safe_getenv("PITRAC_SLOT1_CAMERA_TYPE");
     GS_LOG_TRACE_MSG(info, "GolfSimConfiguration - PITRAC_SLOT1_CAMERA_TYPE environment variable was: " + slot1_env );
     if (slot1_env.empty()) {
-        GS_LOG_TRACE_MSG(info, "GolfSimConfiguration - PITRAC_SLOT1_CAMERA_TYPE environment variable was not set.  Assuming default of: " + std::to_string(GolfSimCamera::kSystemSlot1CameraType));
+        GS_LOG_TRACE_MSG(info, "GolfSimConfiguration - PITRAC_SLOT1_CAMERA_TYPE environment variable was not set.  Assuming default of (4) PiGS (global shutter): " + std::to_string(GolfSimCamera::kSystemSlot1CameraType));
     } else {
 #ifndef __unix__  // Ignore in Windows environment
 		// Ensure we don't have any trailing spaces.  Visual Studio seems to add them?
@@ -244,7 +244,7 @@ bool GolfSimConfiguration::ReadValues() {
             GS_LOG_TRACE_MSG(error, "GolfSimConfiguration - PITRAC_SLOT2_CAMERA_TYPE environment variable must be set when running in single-pi mode, but was not.  Exiting.");
             return false;
         } else {
-            GS_LOG_TRACE_MSG(info, "GolfSimConfiguration - PITRAC_SLOT2_CAMERA_TYPE environment variable was not set.  Assuming default of: " + std::to_string(GolfSimCamera::kSystemSlot2CameraType));
+            GS_LOG_TRACE_MSG(info, "GolfSimConfiguration - PITRAC_SLOT2_CAMERA_TYPE environment variable was not set.  Assuming default of (4) PiGS (global shutter): " + std::to_string(GolfSimCamera::kSystemSlot2CameraType));
         }
     } else {
 #ifndef __unix__  // Ignore in Windows environment
@@ -257,7 +257,7 @@ bool GolfSimConfiguration::ReadValues() {
 	std::string slot1_lens_env = safe_getenv("PITRAC_SLOT1_LENS_TYPE");
 	GS_LOG_TRACE_MSG(info, "GolfSimConfiguration - PITRAC_SLOT1_LENS_TYPE environment variable was: " + slot1_lens_env);
 	if (slot1_lens_env.empty()) {
-		GS_LOG_TRACE_MSG(info, "GolfSimConfiguration - PITRAC_SLOT1_LENS_TYPE environment variable was not set.  Assuming default of: " + std::to_string(GolfSimCamera::kSystemSlot1LensType));
+		GS_LOG_TRACE_MSG(info, "GolfSimConfiguration - PITRAC_SLOT1_LENS_TYPE environment variable was not set.  Assuming default of (1) Lens_6mm: " + std::to_string(GolfSimCamera::kSystemSlot1LensType));
 	}
 	else {
 #ifndef __unix__  // Ignore in Windows environment
@@ -276,7 +276,7 @@ bool GolfSimConfiguration::ReadValues() {
 			return false;
 		}
 		else {
-			GS_LOG_TRACE_MSG(info, "GolfSimConfiguration - PITRAC_SLOT2_LENS_TYPE environment variable was not set.  Assuming default of: " + std::to_string(GolfSimCamera::kSystemSlot2LensType));
+			GS_LOG_TRACE_MSG(info, "GolfSimConfiguration - PITRAC_SLOT2_LENS_TYPE environment variable was not set.  Assuming default of (1) Lens_6mm: " + std::to_string(GolfSimCamera::kSystemSlot2LensType));
 		}
 	}
 	else {
@@ -291,7 +291,7 @@ bool GolfSimConfiguration::ReadValues() {
 	std::string slot1_camera_orientation_env = safe_getenv("PITRAC_SLOT1_CAMERA_ORIENTATION");
 	GS_LOG_TRACE_MSG(info, "GolfSimConfiguration - PITRAC_SLOT1_CAMERA_ORIENTATION environment variable was: " + slot1_camera_orientation_env);
 	if (slot1_camera_orientation_env.empty()) {
-		GS_LOG_TRACE_MSG(info, "GolfSimConfiguration - PITRAC_SLOT1_CAMERA_ORIENTATION environment variable was not set.  Assuming default of: " + std::to_string(GolfSimCamera::kSystemSlot1CameraOrientation));
+		GS_LOG_TRACE_MSG(info, "GolfSimConfiguration - PITRAC_SLOT1_CAMERA_ORIENTATION environment variable was not set.  Assuming default of (1) kUpsideUp: " + std::to_string(GolfSimCamera::kSystemSlot1CameraOrientation));
 	}
 	else {
 #ifndef __unix__  // Ignore in Windows environment
@@ -310,7 +310,7 @@ bool GolfSimConfiguration::ReadValues() {
 			return false;
 		}
 		else {
-			GS_LOG_TRACE_MSG(info, "GolfSimConfiguration - PITRAC_SLOT2_CAMERA_ORIENTATION environment variable was not set.  Assuming default of: " + std::to_string(GolfSimCamera::kSystemSlot2CameraOrientation));
+			GS_LOG_TRACE_MSG(info, "GolfSimConfiguration - PITRAC_SLOT2_CAMERA_ORIENTATION environment variable was not set.  Assuming default of (1) kUpsideUp: " + std::to_string(GolfSimCamera::kSystemSlot2CameraOrientation));
 		}
 	}
 	else {

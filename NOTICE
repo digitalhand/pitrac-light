@@ -1,0 +1,15 @@
+This repository contains a mix of code under different licenses.
+
+License resolution order:
+1. File-level SPDX header is authoritative for that file.
+2. If a file has no SPDX header, treat that as a compliance gap.
+
+Primary license documents in this repository:
+- MIT: LICENSE
+- GPL-2.0-only: LICENSES/GPL-2.0-only.txt
+- BSD-2-Clause: LICENSES/BSD-2-Clause.txt
+
+Attribution and provenance:
+- Upstream/third-party notices are preserved in their source files.
+- Net-new Digital Hand authored code should use MIT + Digital Hand header.
+- See LICENSE_POLICY.md and COPYRIGHT_HEADERS.md for contributor rules.

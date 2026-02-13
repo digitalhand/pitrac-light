@@ -1,5 +1,5 @@
 @startuml
-title Ball Hit Flow (Detection -> Simulator -> UI)
+title Ball Hit Flow (Detection -> Camera2 -> Simulator)
 
 skinparam shadowing false
 skinparam backgroundColor white
@@ -8,56 +8,38 @@ skinparam responseMessageBelowArrow true
 
 participant "Camera1 FSM\n(gs_fsm.cpp)" as FSM
 participant "PulseStrobe/GPIO" as STROBE
-participant "ActiveMQ\nGolf.Sim" as MQ
-participant "Camera2 Process\n(runCam2.../camera2)" as CAM2
+participant "ActiveMQ\nGolf.Sim topic" as MQ
+participant "Camera2 Runtime\n(system_mode camera2)" as CAM2
 participant "Cam1 Analysis\nProcessReceivedCam2Image" as ANALYSIS
-participant "Simulator Interface\n(GSPro)" as SIM
-participant "Web ActiveMQListener\n(STOMP)" as WEBL
-participant "ShotDataStore\n+ WebSocket" as WEB
-participant "Browser UI" as UI
+participant "Simulator Bridge\nGsSimInterface" as SIM
+participant "GSPro" as GSPRO
+participant "Artifact Writer" as FILES
 
 FSM -> FSM : Ball stabilized\nIncrementShotCounter()
 FSM -> MQ : IPC kRequestForCamera2Image
 FSM -> STROBE : SendCameraPrimingPulses()
 FSM -> MQ : IPC status kBallPlacedAndReadyForHit
-WEBL -> MQ : subscribed /topic/Golf.Sim
-MQ -> WEBL : status message
-WEBL -> WEB : update status = "Ball Placed"
-WEB -> UI : websocket status update
 
 FSM -> STROBE : WatchForHitAndTrigger()
-note right of FSM
-Hit detected by camera1 watch loop,
-then FSM enters BallHitNowWaitingForCam2Image.
-end note
-
-STROBE -> CAM2 : external trigger/shutter pulse
-CAM2 -> MQ : IPC kCamera2Image (captured frame)
+STROBE -> CAM2 : external trigger pulse
+CAM2 -> MQ : IPC kCamera2Image
 MQ -> FSM : camera2 image event
 FSM -> ANALYSIS : ProcessReceivedCam2Image()
 
 alt analysis success
   ANALYSIS -> SIM : SendResultsToGolfSims()
-  alt GSPro configured
-    SIM -> SIM : TCP send JSON to GSPro :921\n(always armed in current implementation)
-  end
-
-  ANALYSIS -> MQ : IPC kResults (Hit + metrics + image paths)
-  MQ -> WEBL : results message
-  WEBL -> WEB : parse/store shot data
-  WEB -> UI : websocket hit update\n(speed, launch, spin, message)
-  UI -> UI : load images from /images/*\n(backed by ~/LM_Shares/Images)
+  SIM -> GSPRO : TCP JSON :921
+  ANALYSIS -> MQ : IPC kResults (hit metrics)
+  ANALYSIS -> FILES : save output images/logs
 else analysis failed
-  ANALYSIS -> MQ : IPC kResults (Error status)
-  MQ -> WEBL : error message
-  WEBL -> WEB : store error state
-  WEB -> UI : websocket error update
+  ANALYSIS -> MQ : IPC kResults (error)
+  ANALYSIS -> FILES : save diagnostics
 end
 
 opt camera2 timeout branch
-  FSM -> FSM : timeout waiting for Camera2Image
+  FSM -> FSM : timeout waiting for camera2 image
   FSM -> MQ : IPC error status
-  FSM -> FSM : queue Restart -> re-enter waiting flow
+  FSM -> FSM : queue Restart
 end
 
 @enduml

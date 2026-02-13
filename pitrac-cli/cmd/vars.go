@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026, Digital Hand LLC.
+
 package cmd
 
 // Shared environment variable lists used across doctor, env validate,

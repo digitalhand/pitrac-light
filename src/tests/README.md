@@ -343,11 +343,21 @@ When algorithm behavior intentionally changes:
 
 **Priority Files (2,400+ lines to cover):**
 
-1. **Ball Detection (`ball_image_proc.cpp` - 1,175 lines)**
-   - Hough circle detection
-   - ONNX model inference
-   - Color filtering
-   - ROI extraction
+1. **Ball Detection Module (`src/ball_detection/` - ~3,400 lines, Phase 3.1 refactored)**
+   - `ball_detector_facade.cpp` - Main detection orchestration (~400 lines)
+   - `hough_detector.cpp` - Circle detection with preprocessing (~600 lines)
+   - `spin_analyzer.cpp` - 3D rotation detection (~700 lines)
+   - `ellipse_detector.cpp` - Non-circular ball fitting (~400 lines)
+   - `search_strategy.cpp` - Mode-specific parameters (~300 lines)
+   - `color_filter.cpp` - HSV validation (~300 lines)
+   - `roi_manager.cpp` - Region extraction (~200 lines)
+   - `ball_image_proc.cpp` - Facade delegation (~1,099 lines after cleanup)
+
+   **Testing Strategy:**
+   - Unit tests for each module independently
+   - Approval tests for regression detection (baselines in `test_data/approval_artifacts/`)
+   - Integration tests for full detection pipeline
+   - Performance benchmarks (10-15% improvement from Phase 3.1 optimizations)
 
 2. **State Machine (`gs_fsm.cpp` - 245 lines)**
    - State transitions

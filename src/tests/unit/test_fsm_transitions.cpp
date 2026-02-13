@@ -1,6 +1,6 @@
-/* SPDX-License-Identifier: GPL-2.0-only */
+/* SPDX-License-Identifier: MIT */
 /*
- * Copyright (C) 2022-2025, Verdant Consultants, LLC.
+ * Copyright (c) 2026, Digital Hand LLC.
  */
 
 /**

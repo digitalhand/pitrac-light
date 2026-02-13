@@ -12,38 +12,39 @@ skinparam activity {
 
 start
 
-:Optional pre-check:\nPOST /api/calibration/ball-location/camera2;
-:Optional still capture:\nPOST /api/calibration/capture/camera2;
-:Validate image quality in\n~/LM_Shares/Images;
+:User runs calibration script:\nrunAutoCalibrateCam2.sh\nor: pitrac-cli run --mode camera2AutoCalibrate;
 
-:POST /api/calibration/auto/camera2;
-:CalibrationManager creates session\nfor expected keys:\n- gs_config.cameras.kCamera2FocalLength\n- gs_config.cameras.kCamera2Angles;
+:Script sources runPiTracCommon.sh\nto load PITRAC_* environment variables;
 
 if (Single-Pi mode?) then (yes)
-  :Start background pitrac_lm:\n--run_single_pi --system_mode runCam2ProcessForPi1Processing;
-  :Wait ~4s for background init;
+  :Start background pitrac_lm:\n--run_single_pi\n--system_mode runCam2ProcessForPi1Processing;
+  note right
+    Background process provides
+    camera2 IPC responder on
+    the same Pi.
+  end note
+  :Wait for background process to initialize;
   :Start foreground pitrac_lm:\n--system_mode camera2AutoCalibrate;
 else (no)
-  :Run standard (single-process)\ncamera2 calibration fallback;
+  :Run pitrac_lm on camera2 Pi:\n--system_mode camera2AutoCalibrate;
 endif
 
-:Hybrid completion detection:\n1) API callbacks\n2) Process exit\n3) Timeout (140s);
+:pitrac_lm performs auto-calibration:\n- Detects calibration target\n- Computes kCamera2FocalLength\n- Computes kCamera2Angles;
 
-if (Both callback keys received?) then (yes)
-  :PUT /api/config updates camera2\nfocal length + angles;
-  :Write values into\n~/.pitrac/config/calibration_data.json;
-  :Regenerate\n~/.pitrac/config/generated_golf_sim_config.json;
+if (Calibration successful?) then (yes)
+  :Write calibration results\ninto golf_sim_config.json;
+  :Save calibration artifact images\nto ~/LM_Shares/Images;
 else (no)
-  :Fallback to process result\nand output parsing for failure markers;
+  :Log error and exit with\nnon-zero status;
 endif
 
 if (Background process running?) then (yes)
   :Terminate camera2 background process;
 endif
 
-:Status exposed via\nGET /api/calibration/status;
-:Calibration values exposed via\nGET /api/calibration/data;
-:Validate resulting calibration images\nin ~/LM_Shares/Images;
+:Process exits;
+
+:User validates calibration images\nin ~/LM_Shares/Images;
 
 stop
 @enduml

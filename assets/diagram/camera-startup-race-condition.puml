@@ -1,0 +1,131 @@
+@startuml
+title Camera1 / Camera2 Startup Coordination & Race Condition Window
+
+skinparam shadowing false
+skinparam backgroundColor white
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam noteBorderColor #888888
+
+participant "Camera1 FSM\n(gs_fsm.cpp)" as CAM1
+participant "PulseStrobe/GPIO\n(pulse_strobe.cpp)" as STROBE
+participant "ActiveMQ\nGolf.Sim" as MQ
+participant "Camera2 FSM\n(gs_fsm.cpp)" as CAM2
+participant "libcamera\n(Camera2 HW)" as HW
+
+== Camera2 Startup (can launch simultaneously with Camera1) ==
+
+CAM2 -> CAM2 : InitializingCamera2System
+CAM2 -> CAM2 : Restart event\n-> WaitingForCameraArmMessage
+note right of CAM2
+  **Camera2 is idle here.**
+  Blocked on DeQueueEvent()
+  waiting for ArmCamera2MessageReceived.
+  Consumes zero CPU.
+end note
+
+== Camera1: Ball Detection & Stabilization ==
+
+CAM1 -> CAM1 : WaitingForBall
+CAM1 -> CAM1 : CheckForBall() -> ball found
+CAM1 -> CAM1 : WaitingForBallStabilization\nstarts 1s timer thread
+
+...1 second elapses...
+
+CAM1 -> CAM1 : CheckForBallStable event fires
+CAM1 -> CAM1 : Re-verify ball position\n(CheckIfBallMoved)
+
+alt ball moved or lost
+  CAM1 -> CAM1 : Back to WaitingForBall
+else ball stabilized
+end
+
+CAM1 -> CAM1 : IncrementShotCounter()
+
+== Arm Camera2 & Priming Sequence ==
+
+CAM1 -> MQ : SendIpcMessage(\nkRequestForCamera2Image)
+MQ -> CAM2 : ArmCamera2MessageReceived\nqueued to event queue
+
+CAM1 -> STROBE : SendCameraPrimingPulses(\nuse_fast_speed)
+
+note over STROBE #FFEEEE
+  **usleep(kCam2SetupPeriodMilliseconds)**
+  Default: 2000 ms
+  Hope-based wait for Camera2
+  to be ready for trigger.
+end note
+
+STROBE -> STROBE : usleep(2000ms)
+
+|||
+
+note over CAM2, HW #FFFFDD
+  **RACE CONDITION WINDOW**
+  Camera2 must complete ALL of the following
+  before the priming pulses arrive:
+  1. ActiveMQ delivers message  (~10-50ms)
+  2. Consumer thread queues event  (~1ms)
+  3. FSM dequeues & processes event  (~5ms)
+  4. WaitForCam2Trigger() called
+  5. libcamera configured & blocking on trigger
+  Total varies: typically ~100-500ms,
+  but under load can exceed 2000ms.
+end note
+
+CAM2 -> CAM2 : FSM processes\nArmCamera2MessageReceived
+CAM2 -> HW : WaitForCam2Trigger()\n[BLOCKS on external trigger]
+
+|||
+
+STROBE -> STROBE : Send priming pulses\n(kNumberPrimingPulses @ kPrimingPulseFPS)
+STROBE -> HW : Final trigger pulse via GPIO
+
+alt Camera2 ready (normal path)
+  HW -> CAM2 : Image captured
+  CAM2 -> MQ : SendIpcMessage(\nkCamera2Image + image)
+  MQ -> CAM1 : Camera2ImageReceived\nqueued to event queue
+else Camera2 NOT ready (race condition)
+  note over STROBE, HW #FFCCCC
+    Trigger arrives before Camera2
+    is blocking on WaitForCam2Trigger().
+    **Pulse is missed.** Camera2 never
+    captures, Camera1 times out.
+  end note
+end
+
+== Camera1: Waiting for Camera2 Image ==
+
+CAM1 -> CAM1 : BeginWatchingForBallHit event
+CAM1 -> CAM1 : sleep(1s)\n(additional Camera2 readiness wait)
+CAM1 -> CAM1 : WatchForHitAndTrigger()
+CAM1 -> CAM1 : Ball hit detected!
+
+CAM1 -> CAM1 : BallHitNowWaitingForCam2Image\nstarts 4s timeout timer
+
+alt image received within 4s
+  CAM1 -> CAM1 : ProcessReceivedCam2Image()\n-> send results to simulator
+  CAM1 -> CAM1 : Back to WaitingForBall
+else timeout (4s elapsed)
+  CAM1 -> CAM1 : **Restart** -> InitializingCamera1System
+  note right of CAM1
+    Current hotfix also adds
+    catch-all handlers so
+    late-arriving images are
+    safely ignored.
+  end note
+end
+
+== Hotfix Defenses (this branch) ==
+
+note over CAM1, CAM2 #EEFFEE
+  **Defensive fixes applied:**
+  1. Out-of-phase Camera2ImageReceived -> logged & ignored (not crash)
+  2. Out-of-phase BeginWatchingForBallHit -> logged & ignored
+  3. WaitForCam2Trigger failure or empty image -> clean restart
+  4. DispatchCamera2ImageMessage guards against empty cv::Mat
+  5. rpicam_app: only assign controls when non-empty
+  6. Tuning file fallback candidates (imx296_noir -> imx296 -> imx296_mono)
+end note
+
+@enduml

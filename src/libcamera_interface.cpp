@@ -15,6 +15,7 @@
 #ifdef __unix__  // Ignore in Windows environment
 
 #include <chrono>
+#include <fstream>
 
 
 #include <opencv2/calib3d/calib3d.hpp>
@@ -1007,36 +1008,76 @@ bool SetLibcameraTuningFileEnvVariable(const GolfSimCamera& camera) {
 
     GolfSimConfiguration::PiModel pi_model = GolfSimConfiguration::GetPiModel();
 
+    std::vector<std::string> candidates;
     std::string tuning_file;
+
+    auto file_exists = [](const std::string& path) {
+        std::ifstream f(path);
+        return f.good();
+    };
 
     if (camera.camera_hardware_.camera_is_mono()) {
         // If this is a mono camera, than we must use the "mono" tuning file, regardless of whether
         // the camera is camera 1 or camera 2
 
         if (pi_model == GolfSimConfiguration::PiModel::kRPi5) {
-            tuning_file = "/usr/share/libcamera/ipa/rpi/pisp/imx296_mono.json";
+            candidates = {
+                "/usr/share/libcamera/ipa/rpi/pisp/imx296_mono.json",
+                "/usr/share/libcamera/ipa/rpi/pisp/imx296.json"
+            };
         }
         else {
-            tuning_file = "/usr/share/libcamera/ipa/rpi/vc4/imx296_mono.json";
+            candidates = {
+                "/usr/share/libcamera/ipa/rpi/vc4/imx296_mono.json",
+                "/usr/share/libcamera/ipa/rpi/vc4/imx296.json"
+            };
         }
     }
     else if (GolfSimOptions::GetCommandLineOptions().GetCameraNumber() == GsCameraNumber::kGsCamera1) {
 
         if (pi_model == GolfSimConfiguration::PiModel::kRPi5) {
-            tuning_file = "/usr/share/libcamera/ipa/rpi/pisp/imx296.json";
+            candidates = {
+                "/usr/share/libcamera/ipa/rpi/pisp/imx296.json",
+                "/usr/share/libcamera/ipa/rpi/pisp/imx296_noir.json"
+            };
         }
         else {
-            tuning_file = "/usr/share/libcamera/ipa/rpi/vc4/imx296.json";
+            candidates = {
+                "/usr/share/libcamera/ipa/rpi/vc4/imx296.json",
+                "/usr/share/libcamera/ipa/rpi/vc4/imx296_noir.json"
+            };
         }
     }
     else {
         // Use the infrared (noir) tuning file
         if (pi_model == GolfSimConfiguration::PiModel::kRPi5) {
-            tuning_file = "/usr/share/libcamera/ipa/rpi/pisp/imx296_noir.json";
+            candidates = {
+                "/usr/share/libcamera/ipa/rpi/pisp/imx296_noir.json",
+                "/usr/share/libcamera/ipa/rpi/pisp/imx296.json",
+                "/usr/share/libcamera/ipa/rpi/pisp/imx296_mono.json"
+            };
         }
         else {
-            tuning_file = "/usr/share/libcamera/ipa/rpi/vc4/imx296_noir.json";
+            candidates = {
+                "/usr/share/libcamera/ipa/rpi/vc4/imx296_noir.json",
+                "/usr/share/libcamera/ipa/rpi/vc4/imx296.json",
+                "/usr/share/libcamera/ipa/rpi/vc4/imx296_mono.json"
+            };
         }
+    }
+
+    for (const auto& candidate : candidates) {
+        if (file_exists(candidate)) {
+            tuning_file = candidate;
+            break;
+        }
+    }
+
+    if (tuning_file.empty()) {
+        tuning_file = candidates.empty() ? "" : candidates.front();
+        GS_LOG_MSG(warning, "Could not find any preferred libcamera tuning file. Will try fallback path: " + tuning_file);
+    } else {
+        GS_LOG_TRACE_MSG(trace, "Using libcamera tuning file: " + tuning_file);
     }
 
     setenv("LIBCAMERA_RPI_TUNING_FILE", tuning_file.c_str(), 1);

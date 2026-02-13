@@ -258,7 +258,7 @@ func resolvePitracRootValue(input string) string {
 
 func writeDefaultEnvFile(home, envFile, pitracRoot string, force bool) (string, string, error) {
 	shareDir := filepath.Join(home, "LM_Shares", "Images") + "/"
-	logDir := filepath.Join(home, "PiTracLogs")
+	logDir := filepath.Join(home, "LM_Shares", "PiTracLogs")
 
 	content := buildEnvFile(map[string]string{
 		"PITRAC_ROOT":                    pitracRoot,

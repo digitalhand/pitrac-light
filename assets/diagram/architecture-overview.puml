@@ -11,68 +11,54 @@ actor "User" as user
 
 node "Raspberry Pi OS (arm64)" as pi {
   package "systemd Services" {
-    [pitrac-web.service] as websvc
     [activemq.service] as amqsvc
   }
 
-  package "Web Layer (Python FastAPI)" as web {
-    [Browser UI\nDashboard/Calibration/Testing] as browser
-    [REST API + WebSocket\nserver.py] as api
-    [PiTracProcessManager\n(pitrac_manager.py)] as procman
-    [CalibrationManager] as calman
-    [ActiveMQ Listener\n(STOMP 61613)] as stlistener
-    [ShotDataStore + Parser] as datastore
-    [ConfigurationManager] as cfgman
+  package "CLI / Operations Layer" as cli {
+    [pitrac-cli (Go)\nenv, config, run,\nbuild, doctor, service] as pitrac_cli
+    [RunScripts (Bash)\nrunCam1.sh, runCam2.sh,\ncalibration scripts] as runscripts
   }
 
   package "Core LM Runtime (C++ pitrac_lm)" as lm {
-    [Camera1 Process\nFSM + hit detection] as cam1
-    [Camera2 Process\ncapture/IPC responder] as cam2
+    [Camera1 Process\nFSM + hit detection\n+ ball analysis] as cam1
+    [Camera2 Process\ncapture / IPC responder] as cam2
     [IPC System\n(OpenWire producer/consumer)] as ipc
     [Simulator Interfaces\nGSPro TCP sockets] as simsock
+    [GsUISystem\nstatus + image logging] as uisys
   }
 
-  database "ActiveMQ Broker\nOpenWire 61616 / STOMP 61613" as amq
+  database "ActiveMQ Broker\nOpenWire :61616" as amq
 
-  folder "~/.pitrac/config" as cfgfiles
-  folder "~/.pitrac/logs + ~/.pitrac/run" as runtimedirs
-  folder "~/LM_Shares/Images" as images
+  folder "golf_sim_config.json\n+ PITRAC_* env vars" as cfgfiles
+  folder "~/LM_Shares/Images\n(shot + debug images)" as images
 }
 
 cloud "Simulator PC" as simpc {
   [GSPro] as gspro
 }
 
-user --> browser
-browser --> api : HTTP :8080\nREST + /ws
+user --> pitrac_cli : pitrac-cli run / config / doctor
+user --> runscripts : source + execute scripts
 
-websvc --> api : starts uvicorn main.py
 amqsvc --> amq : broker runtime
 
-api --> procman
-api --> calman
-api --> cfgman
-api --> stlistener
-stlistener --> datastore
-datastore --> api : websocket broadcasts
-
-procman --> cam1 : spawn/stop process
-procman --> cam2 : spawn/stop process\n(single-Pi mode)
-procman --> cfgman : generate config + CLI/env
-procman --> runtimedirs : PID/log files
-
-cfgman --> cfgfiles : user_settings.json\ncalibration_data.json\ngenerated_golf_sim_config.json
+pitrac_cli --> cfgfiles : read/write config
+pitrac_cli --> cam1 : spawn process
+pitrac_cli --> cam2 : spawn process
+runscripts --> cfgfiles : load env + config
+runscripts --> cam1 : spawn process
+runscripts --> cam2 : spawn process
 
 cam1 --> ipc
 cam2 --> ipc
 ipc --> amq : topic Golf.Sim
-stlistener --> amq : subscribe /topic/Golf.Sim
 
 cam1 --> simsock
-simsock --> gspro : TCP 921
+simsock --> gspro : TCP :921
 
-cam1 --> images : shot/debug images
-cam2 --> images : capture images
-api --> images : /images + /api/images
+cam1 --> uisys
+cam2 --> uisys
+uisys --> amq : IPC status/results messages
+uisys --> images : shot/debug/calibration images
 
 @enduml

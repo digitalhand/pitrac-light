@@ -937,7 +937,10 @@ void RPiCamApp::queueRequest(CompletedRequest *completed_request)
 
 	{
 		std::lock_guard<std::mutex> lock(control_mutex_);
-		request->controls() = std::move(controls_);
+		// libcamera 0.7+ can reject re-assigning controls on a reused request.
+		// Only push controls when we actually have pending updates.
+		if (!controls_.empty())
+			request->controls() = std::move(controls_);
 	}
 
 	if (camera_->queueRequest(request) < 0)

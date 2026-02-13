@@ -271,7 +271,7 @@ cmake -S src/Camera -B src/Camera/build -DBOOST_ROOT=/path/to/boost
 
 ### Dependencies (Meson)
 - libcamera (camera control)
-- OpenCV 4.9.0+ (computer vision)
+- OpenCV 4.12.0+ (vision processing, ball detection, DNN inference)
 - Boost 1.74.0+ (logging, threading, filesystem)
 - ActiveMQ-CPP (IPC messaging)
 - YAML-CPP (configuration)

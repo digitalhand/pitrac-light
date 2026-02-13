@@ -310,11 +310,15 @@ fi
 			steps: []commandStep{
 				shellStep("install msgpack package", `
 FORCE="${FORCE:-0}"
-if dpkg -s libmsgpack-dev >/dev/null 2>&1 && [ "${FORCE}" != "1" ]; then
-  echo "libmsgpack-dev already installed. Set FORCE=1 to reinstall."
+if dpkg -s libmsgpack-cxx-dev >/dev/null 2>&1 && [ "${FORCE}" != "1" ]; then
+  echo "libmsgpack-cxx-dev already installed. Set FORCE=1 to reinstall."
   exit 0
 fi
-sudo apt install -y libmsgpack-dev
+# libmsgpack-cxx-dev provides the C++ header-only library (msgpack.hpp)
+# and the msgpack-cxx.pc pkg-config file that meson requires.
+# NOTE: libmsgpack-dev is a transitional package that only installs the
+# C bindings (libmsgpack-c-dev), which does NOT include msgpack.hpp.
+sudo apt install -y libmsgpack-cxx-dev
 `),
 			},
 		},

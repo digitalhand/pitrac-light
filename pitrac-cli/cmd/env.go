@@ -17,6 +17,7 @@ func init() {
 	envCmd.AddCommand(envInitCmd)
 	envCmd.AddCommand(envShowCmd)
 	envCmd.AddCommand(envApplyCmd)
+	envCmd.AddCommand(envResetCmd)
 }
 
 var envCmd = &cobra.Command{
@@ -404,4 +405,162 @@ func confirmProceed(prompt string) bool {
 	}
 	answer := strings.TrimSpace(strings.ToLower(line))
 	return answer == "y" || answer == "yes"
+}
+
+// --- env reset ---
+
+var envResetCmd = &cobra.Command{
+	Use:   "reset",
+	Short: "Remove PiTrac environment configuration and clean shell profile",
+	Long: `Removes PiTrac environment files and cleans up shell profile.
+
+This command will:
+  1. Remove ~/.pitrac/config/pitrac.env file
+  2. Remove source line from shell RC file (~/.bashrc, ~/.zshrc, etc.)
+  3. Display commands to unset environment variables in current session
+
+Use this when switching repositories or fixing incorrect PITRAC_ROOT paths.`,
+	RunE: runEnvReset,
+}
+
+func init() {
+	envResetCmd.Flags().Bool("yes", false, "skip confirmation prompt")
+	envResetCmd.Flags().String("shell-file", "", "shell rc file to clean (default: auto-detect)")
+	envResetCmd.Flags().Bool("keep-dirs", false, "keep created directories (shares, logs)")
+}
+
+func runEnvReset(cmd *cobra.Command, args []string) error {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("failed to resolve home dir: %w", err)
+	}
+
+	yes, _ := cmd.Flags().GetBool("yes")
+	shellFile, _ := cmd.Flags().GetString("shell-file")
+	keepDirs, _ := cmd.Flags().GetBool("keep-dirs")
+
+	if shellFile == "" {
+		shellFile = defaultShellRC()
+	}
+
+	envFile := defaultEnvFilePath(home)
+	pitracDir := filepath.Join(home, ".pitrac")
+
+	printHeader("Reset PiTrac Environment")
+
+	// Check what exists
+	envFileExists := pathExists(envFile)
+	shellFileExists := pathExists(shellFile)
+	pitracDirExists := pathExists(pitracDir)
+
+	if !envFileExists && !shellFileExists && !pitracDirExists {
+		fmt.Println("✓ No PiTrac environment configuration found")
+		return nil
+	}
+
+	// Show what will be removed
+	fmt.Println("The following will be removed:")
+	if envFileExists {
+		fmt.Printf("  • %s\n", envFile)
+	}
+	if shellFileExists {
+		fmt.Printf("  • source line in %s\n", shellFile)
+	}
+	if pitracDirExists && !keepDirs {
+		fmt.Printf("  • %s (entire directory)\n", pitracDir)
+	}
+	fmt.Println()
+
+	// Confirm
+	if !yes {
+		if !confirmProceed("Proceed? [y/N]: ") {
+			fmt.Println("Cancelled")
+			return nil
+		}
+	}
+
+	// Remove env file
+	if envFileExists {
+		if err := os.Remove(envFile); err != nil {
+			return fmt.Errorf("failed to remove env file: %w", err)
+		}
+		printStatus(markSuccess(), "removed", envFile)
+	}
+
+	// Clean shell RC file
+	if shellFileExists {
+		cleaned, err := removeEnvSourceFromShell(envFile, shellFile)
+		if err != nil {
+			return fmt.Errorf("failed to clean shell file: %w", err)
+		}
+		if cleaned {
+			printStatus(markSuccess(), "cleaned", shellFile)
+		} else {
+			printStatus(markInfo(), "no_change", shellFile+" (no source line found)")
+		}
+	}
+
+	// Remove .pitrac directory if empty or requested
+	if pitracDirExists && !keepDirs {
+		if err := os.RemoveAll(pitracDir); err != nil {
+			return fmt.Errorf("failed to remove .pitrac directory: %w", err)
+		}
+		printStatus(markSuccess(), "removed", pitracDir)
+	}
+
+	fmt.Println()
+	fmt.Println("Environment reset complete!")
+	fmt.Println()
+	fmt.Println("To unset variables in current session, run:")
+	fmt.Println("  unset PITRAC_ROOT PITRAC_MSG_BROKER_FULL_ADDRESS PITRAC_WEBSERVER_SHARE_DIR PITRAC_BASE_IMAGE_LOGGING_DIR")
+	fmt.Println()
+	fmt.Println("To set up new environment:")
+	fmt.Printf("  cd /path/to/pitrac-light\n")
+	fmt.Println("  pitrac-cli env setup")
+	fmt.Printf("  source %s\n", shellFile)
+
+	return nil
+}
+
+func removeEnvSourceFromShell(envFile, shellFile string) (bool, error) {
+	content, err := os.ReadFile(shellFile)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+		return false, err
+	}
+
+	lines := strings.Split(string(content), "\n")
+	var newLines []string
+	removed := false
+
+	for _, line := range lines {
+		// Skip lines that source the env file
+		if strings.Contains(line, envFile) && strings.Contains(line, "source") {
+			removed = true
+			continue
+		}
+		// Also skip the comment line if present
+		if strings.Contains(line, "PiTrac environment") {
+			continue
+		}
+		newLines = append(newLines, line)
+	}
+
+	if !removed {
+		return false, nil
+	}
+
+	newContent := strings.Join(newLines, "\n")
+	if err := os.WriteFile(shellFile, []byte(newContent), 0644); err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
+
+func pathExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }

@@ -5,8 +5,8 @@
 
 #include "gs_format_lib.h"
 #include "golf_ball.h"
-#include "logging_tools.h"
-#include "cv_utils.h"
+#include "utils/logging_tools.h"
+#include "utils/cv_utils.h"
 
 
 namespace golf_sim {

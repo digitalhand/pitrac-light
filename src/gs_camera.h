@@ -16,8 +16,8 @@
 */
 
 #include <string>
-#include "logging_tools.h"
-#include "cv_utils.h"
+#include "utils/logging_tools.h"
+#include "utils/cv_utils.h"
 #include "gs_globals.h"
 #include "camera_hardware.h"
 #include "golf_ball.h"

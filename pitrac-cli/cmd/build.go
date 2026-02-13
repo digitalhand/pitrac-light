@@ -29,16 +29,23 @@ var buildCmd = &cobra.Command{
 
 func runBuild(cmd *cobra.Command, args []string) error {
 	root := strings.TrimSpace(os.Getenv("PITRAC_ROOT"))
+	rootSource := "PITRAC_ROOT env var"
 	if root == "" {
 		detected, err := detectRepoRoot()
 		if err != nil {
-			return fmt.Errorf("PITRAC_ROOT not set and could not detect repo root: %w", err)
+			return fmt.Errorf("PITRAC_ROOT not set and could not detect repo root: %w\nHint: Run from repo directory or set PITRAC_ROOT=/path/to/pitrac-light", err)
 		}
 		root = detected
+		rootSource = "auto-detected"
 	}
 
 	srcDir := filepath.Join(root, "src")
 	buildDir := filepath.Join(srcDir, "build")
+
+	// Verify the source directory exists
+	if _, err := os.Stat(srcDir); err != nil {
+		return fmt.Errorf("source directory not found: %s\nPITRAC_ROOT (%s): %s\nHint: Ensure PITRAC_ROOT points to the correct pitrac-light directory", srcDir, rootSource, root)
+	}
 
 	clean, _ := cmd.Flags().GetBool("clean")
 	jobs, _ := cmd.Flags().GetInt("jobs")

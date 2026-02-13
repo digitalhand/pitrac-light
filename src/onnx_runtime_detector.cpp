@@ -4,7 +4,7 @@
  */
 
 #include "onnx_runtime_detector.hpp"
-#include "logging_tools.h"
+#include "utils/logging_tools.h"
 #include <algorithm>
 #include <numeric>
 #include <cstring>

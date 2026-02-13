@@ -28,7 +28,7 @@
 #include <cms/MessageListener.h>
 
 #include "gs_ipc_message.h"
-#include "logging_tools.h"
+#include "utils/logging_tools.h"
 
 
 using namespace activemq::core;

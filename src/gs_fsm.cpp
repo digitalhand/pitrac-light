@@ -16,7 +16,7 @@
 #include <sys/signalfd.h>
 #include <poll.h>
 
-#include "logging_tools.h"
+#include "utils/logging_tools.h"
 #include "worker_thread.h"
 #include "gs_ipc_message.h"
 #include "gs_options.h"

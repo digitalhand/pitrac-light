@@ -7,7 +7,7 @@
 // types of events that occur in the launch monitor system.
 
 #include "gs_events.h"
-#include "logging_tools.h" 
+#include "utils/logging_tools.h" 
 
 #ifdef __unix__  // Ignore in Windows environment
 

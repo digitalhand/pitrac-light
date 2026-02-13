@@ -26,8 +26,8 @@
 #include <opencv2/core/cvdef.h>
 
 #include "ball_image_proc.h"
-#include "logging_tools.h"
-#include "cv_utils.h"
+#include "utils/logging_tools.h"
+#include "utils/cv_utils.h"
 #include "gs_config.h"
 #include "gs_options.h"
 #include "gs_ui_system.h"

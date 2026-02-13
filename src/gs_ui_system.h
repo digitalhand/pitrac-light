@@ -12,7 +12,7 @@
 
 #include <gs_ipc_system.h>
 
-#include "logging_tools.h"
+#include "utils/logging_tools.h"
 #include "golf_ball.h"
 
 

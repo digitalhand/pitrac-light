@@ -1,0 +1,67 @@
+@startuml
+skinparam componentStyle rectangle
+skinparam backgroundColor white
+skinparam defaultTextAlignment center
+
+title PiTrac Launch Monitor - Module Dependencies
+
+package "PiTrac Launch Monitor" {
+
+  package "Bounded Contexts" #EEEEEE {
+    component [Camera] as Camera #E5E5FF
+    component [ImageAnalysis] as ImageAnalysis #FFE5FF
+  }
+
+  package "Infrastructure" #EEEEEE {
+    component [encoder] as encoder #FFE5E5
+    component [image] as image #FFE5E5
+    component [output] as output #FFE5E5
+    component [post_processing_stages] as post_processing_stages #FFE5E5
+    component [preview] as preview #FFE5E5
+  }
+
+  package "Simulator Integration" #EEEEEE {
+    component [sim/common] as sim_common #FFFFD0
+    component [sim/gspro] as sim_gspro #FFFFD0
+  }
+
+  component [core] as core #FFE5E5
+  component [tests] as tests #F0F0F0
+  component [utils] as utils #E5F5E5
+}
+
+core --> encoder
+core --> image
+core --> output
+core --> post_processing_stages
+core --> preview
+core --> sim_common
+core --> sim_gspro
+core --> utils
+encoder --> core
+image --> core
+output --> core
+post_processing_stages --> core
+post_processing_stages --> image
+post_processing_stages --> utils
+preview --> core
+sim_common --> core
+sim_common --> sim_gspro
+sim_common --> utils
+sim_gspro --> core
+sim_gspro --> sim_common
+sim_gspro --> utils
+tests --> core
+tests --> utils
+utils --> core
+
+legend right
+  |= Color |= Type |
+  | <#E5E5FF> | Bounded Context |
+  | <#E5F5E5> | Utilities |
+  | <#FFE5E5> | Infrastructure |
+  | <#FFFFD0> | Simulator Integration |
+  | <#F0F0F0> | Testing |
+endlegend
+
+@enduml

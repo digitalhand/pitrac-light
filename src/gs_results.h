@@ -10,7 +10,7 @@
 
 #include <boost/property_tree/json_parser.hpp>
 
-#include "logging_tools.h"
+#include "utils/logging_tools.h"
 #include "golf_ball.h"
 #include "gs_clubs.h"
 

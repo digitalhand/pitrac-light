@@ -3,7 +3,7 @@
  * Copyright (C) 2022-2025, Verdant Consultants, LLC.
  */
 
-#include "logging_tools.h"
+#include "utils/logging_tools.h"
 #include "gs_config.h"
 #include "gs_ipc_result.h"
 #include "gs_ipc_system.h"

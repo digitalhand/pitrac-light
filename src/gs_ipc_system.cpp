@@ -6,7 +6,7 @@
 #ifdef __unix__  // Ignore in Windows environment
 
 #include "gs_globals.h"
-#include "logging_tools.h"
+#include "utils/logging_tools.h"
 
 #include "gs_ipc_message.h"
 #include "gs_options.h"

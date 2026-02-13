@@ -7,7 +7,7 @@
 #include <boost/circular_buffer.hpp>
 #include <boost/range/adaptor/reversed.hpp>
 
-#include "logging_tools.h"
+#include "utils/logging_tools.h"
 #include "gs_options.h"
 #include "gs_config.h"
 

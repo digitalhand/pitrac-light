@@ -1,0 +1,131 @@
+#!/bin/bash
+# PiTrac Pre-Commit Hook
+# Runs quick checks and unit tests before allowing commit
+
+set -e
+
+echo "🔍 Running pre-commit checks..."
+
+# Color codes
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+# =============================================================================
+# Check 1: Trailing Whitespace
+# =============================================================================
+echo ""
+echo "1️⃣  Checking for trailing whitespace..."
+if git diff --cached --check; then
+    echo -e "${GREEN}✅ No trailing whitespace${NC}"
+else
+    echo -e "${RED}❌ Found trailing whitespace. Please fix before committing.${NC}"
+    exit 1
+fi
+
+# =============================================================================
+# Check 2: Large Files
+# =============================================================================
+echo ""
+echo "2️⃣  Checking for large files (>5MB)..."
+large_files=$(git diff --cached --name-only | xargs -I {} du -k {} 2>/dev/null | awk '$1 > 5120 {print $2}')
+if [ -n "$large_files" ]; then
+    echo -e "${YELLOW}⚠️  Warning: Large files detected:${NC}"
+    echo "$large_files"
+    echo -e "${YELLOW}Consider using Git LFS for large binary files${NC}"
+fi
+
+# =============================================================================
+# Check 3: Compile Check (if source files changed)
+# =============================================================================
+changed_cpp_files=$(git diff --cached --name-only | grep -E '\.(cpp|h|hpp)$' || true)
+if [ -n "$changed_cpp_files" ]; then
+    echo ""
+    echo "3️⃣  C++ files changed, checking if build directory exists..."
+
+    if [ -d "src/build" ]; then
+        echo "Building project..."
+        if ninja -C src/build; then
+            echo -e "${GREEN}✅ Build succeeded${NC}"
+        else
+            echo -e "${RED}❌ Build failed. Fix compilation errors before committing.${NC}"
+            exit 1
+        fi
+    else
+        echo -e "${YELLOW}⚠️  No build directory found. Run 'meson setup src/build' first.${NC}"
+        echo "Skipping build check..."
+    fi
+else
+    echo ""
+    echo "3️⃣  No C++ files changed, skipping build check"
+fi
+
+# =============================================================================
+# Check 4: Run Unit Tests (Quick Suite)
+# =============================================================================
+if [ -d "src/build" ] && [ -n "$changed_cpp_files" ]; then
+    echo ""
+    echo "4️⃣  Running unit tests..."
+
+    # Run only unit tests (fast)
+    if meson test -C src/build --suite unit --no-rebuild --print-errorlogs 2>&1 | tee /tmp/test-output.log; then
+        echo -e "${GREEN}✅ Unit tests passed${NC}"
+    else
+        echo -e "${RED}❌ Unit tests failed. Fix tests before committing.${NC}"
+        echo ""
+        echo "To see full test output:"
+        echo "  cat /tmp/test-output.log"
+        echo ""
+        echo "To run tests manually:"
+        echo "  meson test -C src/build --suite unit --print-errorlogs"
+        exit 1
+    fi
+else
+    echo ""
+    echo "4️⃣  Skipping unit tests (no build dir or no C++ changes)"
+fi
+
+# =============================================================================
+# Check 5: TODO Comment Check
+# =============================================================================
+echo ""
+echo "5️⃣  Checking for TODO comments without issue links..."
+new_todos=$(git diff --cached --diff-filter=A -U0 | grep -E '^\+.*TODO' | grep -v -E 'TODO\(#[0-9]+\)|TODO:.*#[0-9]+' || true)
+if [ -n "$new_todos" ]; then
+    echo -e "${YELLOW}⚠️  Warning: New TODO comments without issue links:${NC}"
+    echo "$new_todos"
+    echo ""
+    echo "Consider linking TODOs to GitHub issues: TODO(#123) or TODO: Fix #123"
+fi
+
+# =============================================================================
+# Check 6: Config Migration Warning
+# =============================================================================
+echo ""
+echo "6️⃣  Checking for new SetConstant() calls..."
+new_setconstant=$(git diff --cached --diff-filter=A -U0 | grep -E '^\+.*SetConstant\(' || true)
+if [ -n "$new_setconstant" ]; then
+    echo -e "${YELLOW}⚠️  Warning: New SetConstant() calls detected${NC}"
+    echo "$new_setconstant"
+    echo ""
+    echo "We're migrating away from SetConstant() to ConfigurationManager."
+    echo "See CONFIG_MIGRATION_AUDIT.md for details."
+    echo ""
+    read -p "Continue with commit anyway? (y/N) " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        exit 1
+    fi
+fi
+
+# =============================================================================
+# Success!
+# =============================================================================
+echo ""
+echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${GREEN}✅ All pre-commit checks passed!${NC}"
+echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo ""
+
+exit 0

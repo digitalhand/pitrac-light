@@ -34,7 +34,7 @@
 #include "gs_globals.h"
 #include "gs_options.h"
 #include "gs_config.h"
-#include "logging_tools.h"
+#include "utils/logging_tools.h"
 
 #include "gs_ipc_message.h"
 #include "gs_ipc_system.h"

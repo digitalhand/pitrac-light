@@ -9,8 +9,8 @@
 #pragma once
 
 #include <string>
-#include "logging_tools.h"
-#include "cv_utils.h"
+#include "utils/logging_tools.h"
+#include "utils/cv_utils.h"
 #include "gs_globals.h"
 #include "gs_options.h"
 

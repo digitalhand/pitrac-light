@@ -26,7 +26,7 @@
 #include <onnxruntime_cxx_api.h>
 #endif
 
-#include "logging_tools.h"
+#include "utils/logging_tools.h"
 #include "gs_camera.h"
 #include "colorsys.h"
 #include "golf_ball.h"

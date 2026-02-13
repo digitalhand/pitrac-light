@@ -21,7 +21,7 @@
 
 #include "motion_detect.h"
 
-#include "logging_tools.h"
+#include "utils/logging_tools.h"
 #include "gs_globals.h"
 
 namespace gs = golf_sim;

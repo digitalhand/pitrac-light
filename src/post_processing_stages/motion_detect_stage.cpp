@@ -36,7 +36,7 @@
 #include "gs_globals.h"
 #include "gs_options.h"
 #include "pulse_strobe.h"
-#include "logging_tools.h"
+#include "utils/logging_tools.h"
 #include "gs_fsm.h"
 #include "motion_detect.h"
 

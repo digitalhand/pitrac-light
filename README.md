@@ -77,6 +77,7 @@ pitrac-cli --help
 | Path | Description |
 | --- | --- |
 | `src/` | Primary C++ sources (camera control, message bus, UI, pipelines). |
+| `src/ball_detection/` | **Modular ball detection pipeline** (7 focused modules: HoughDetector, SpinAnalyzer, BallDetectorFacade, etc.) |
 | `src/Camera`, `src/ImageAnalysis` | Clean-architecture bounded contexts for camera IO and tee/motion/flight analysis. |
 | `src/RunScripts/` | Shell helpers for common Pi workflows (`runCam1.sh`, `runAutoCalibrateCam2.sh`, etc.). |
 | `src/sim/` | Simulator integrations (`sim/common`, `sim/gspro`) that bridge PiTrac shot data into GSPro. |

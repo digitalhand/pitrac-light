@@ -97,7 +97,7 @@ jobs:
 
       - name: Upload ${{ matrix.context }} Test Results
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.context }}-test-results
           path: src/${{ matrix.context }}/build/Testing/

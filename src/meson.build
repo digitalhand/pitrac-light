@@ -72,6 +72,15 @@ activemq_dep = dependency('activemq-cpp', required : true)
 apr_dep = cxx.find_library('apr-1', required : true)
 
 libcamera_dep = dependency('libcamera', required : true)
+
+# libcamera >= 0.3 removed libcamera/base/span.h in favour of std::span (C++20).
+# Detect which is available and set a compile-time flag so headers can adapt.
+if not cxx.has_header('libcamera/base/span.h', dependencies : libcamera_dep)
+    add_global_arguments('-DLIBCAMERA_HAS_BASE_SPAN=0', language : 'cpp')
+else
+    add_global_arguments('-DLIBCAMERA_HAS_BASE_SPAN=1', language : 'cpp')
+endif
+
 thread_dep = dependency('threads', required : true)
 opencv_dep = dependency('opencv4', required : true, version : '>=4.9.0', include_type: 'system',)
 

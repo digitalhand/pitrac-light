@@ -9,7 +9,7 @@
 
 #include <string>
 
-#include <libcamera/base/span.h>
+#include "core/libcamera_span_compat.hpp"
 
 #include <libcamera/controls.h>
 

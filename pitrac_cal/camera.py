@@ -130,6 +130,24 @@ def _configure_imx296_sensor(
     return True
 
 
+def _is_camera_mono(camera_num: int) -> bool:
+    """Check if a camera slot uses a mono sensor.
+
+    Reads PITRAC_SLOT{N}_CAMERA_TYPE (same env var as the C++ code in
+    gs_config.cpp:226-255).  Camera model enum from camera_hardware.h:
+
+        1 = PiCam13, 2 = PiCam2, 3 = PiHQ,
+        4 = PiGS (color), 5 = InnoMakerIMX296GS_Mono
+
+    Only model 5 is mono.  Default is 4 (PiGS color).
+    """
+    env_var = f"PITRAC_SLOT{camera_num}_CAMERA_TYPE"
+    val = os.environ.get(env_var, "4")
+    is_mono = val.strip() == "5"
+    logger.info("%s=%s → mono=%s", env_var, val, is_mono)
+    return is_mono
+
+
 def _setup_tuning_file(camera_num: int, is_mono: bool) -> None:
     """Set LIBCAMERA_RPI_TUNING_FILE env var for the IMX296 sensor.
 
@@ -225,8 +243,7 @@ class RpicamSource:
                 "Found IMX296 at /dev/media%d, device %d-001a",
                 media_num, device_num,
             )
-            # Camera 1 is typically the global shutter (mono) camera
-            is_mono = (pitrac_camera_num == 1)
+            is_mono = _is_camera_mono(pitrac_camera_num)
             _setup_tuning_file(pitrac_camera_num, is_mono)
             _configure_imx296_sensor(media_num, device_num, mono=is_mono)
         else:

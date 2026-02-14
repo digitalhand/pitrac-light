@@ -45,7 +45,7 @@ Previously, intrinsic parameters were computed manually and hardcoded, while ext
 **Software:**
 - Python 3.9+ (included in Raspberry Pi OS)
 - OpenCV 4.8+ with Python bindings
-- picamera2 (included in Raspberry Pi OS)
+- rpicam-apps (`rpicam-still`) — installed by `pitrac-cli install camera`
 - numpy
 
 **Display:**
@@ -56,7 +56,7 @@ Previously, intrinsic parameters were computed manually and hardcoded, while ext
 All dependencies are installed through `apt`. No pip or virtual environments needed.
 
 ```bash
-sudo apt install -y python3-numpy python3-opencv python3-picamera2
+sudo apt install -y python3-numpy python3-opencv
 ```
 
 If you already ran `pitrac-cli install opencv` (or `full`), the source-built OpenCV includes Python bindings and `python3-opencv` can be skipped — but installing it anyway is harmless.
@@ -64,7 +64,8 @@ If you already ran `pitrac-cli install opencv` (or `full`), the source-built Ope
 Verify:
 
 ```bash
-python3 -c "import numpy, cv2; from picamera2 import Picamera2; print('all OK')"
+python3 -c "import numpy, cv2; print('all OK')"
+rpicam-still --version
 ```
 
 ## Usage
@@ -336,12 +337,12 @@ python3 -m pitrac_cal --camera 1 --mode full
 
 Or use `pitrac-cli run calibrate-gui` which sets the working directory automatically.
 
-### `RuntimeError: picamera2 is not available`
+### `RuntimeError: rpicam-still not found`
 
-You are running on a non-Pi machine. Use `--image-dir` to load images from a directory, or install picamera2 on the Pi:
+You are either on a non-Pi machine or rpicam-apps is not installed. On a dev machine, use `--image-dir` to load images from a directory. On the Pi:
 
 ```bash
-sudo apt install -y python3-picamera2
+pitrac-cli install camera --yes
 ```
 
 ### No window appears / `cv2.error: ... cannot open display`

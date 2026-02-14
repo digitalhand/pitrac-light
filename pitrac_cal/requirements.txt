@@ -1,4 +1,4 @@
 # Off-Pi development only (Ubuntu, macOS, etc.)
-# On Raspberry Pi OS, use: sudo apt install -y python3-numpy python3-opencv python3-picamera2
+# On Raspberry Pi OS, use: sudo apt install -y python3-numpy python3-opencv
 numpy>=1.24
 opencv-python>=4.8

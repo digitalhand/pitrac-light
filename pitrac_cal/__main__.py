@@ -10,9 +10,12 @@ Usage:
 from __future__ import annotations
 
 import logging
+import os
 import sys
 import time
+from datetime import datetime
 from enum import Enum, auto
+from pathlib import Path
 
 import cv2
 import numpy as np
@@ -26,6 +29,31 @@ logging.basicConfig(
 logger = logging.getLogger("pitrac-cal")
 
 WINDOW = "pitrac-cal"
+
+# Default log directory for saved calibration images
+_DEFAULT_LOG_DIR = Path(
+    os.environ.get(
+        "PITRAC_BASE_IMAGE_LOGGING_DIR",
+        os.path.expanduser("~/LM_Shares/PiTracLogs"),
+    )
+)
+
+
+def _get_log_dir(camera_num: int, mode: str) -> Path:
+    """Create and return a timestamped directory for saving calibration images."""
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_dir = _DEFAULT_LOG_DIR / f"calibrate_cam{camera_num}_{mode}_{timestamp}"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    logger.info("Saving calibration images to %s", log_dir)
+    return log_dir
+
+
+def _save_frame(frame: np.ndarray, log_dir: Path, prefix: str, index: int) -> None:
+    """Save a frame to the log directory."""
+    path = log_dir / f"{prefix}_{index:03d}.png"
+    cv2.imwrite(str(path), frame)
+    logger.info("Saved %s", path)
+
 
 # Auto-capture settings
 INTRINSIC_AUTO_CAPTURE_COUNT = 15
@@ -123,6 +151,7 @@ def run_intrinsic(
     undistort_on = False
     state = State.INTRINSIC_PREVIEW
     last_auto_capture: float = 0.0
+    log_dir = _get_log_dir(camera_num, "intrinsic")
 
     while True:
         frame = source.capture()
@@ -148,6 +177,7 @@ def run_intrinsic(
                 all_corners.append(corners)
                 all_ids.append(ids)
                 last_auto_capture = now
+                _save_frame(frame, log_dir, "intrinsic", len(all_corners))
                 logger.info(
                     "Auto-captured %d/%d (%d corners)",
                     len(all_corners), INTRINSIC_AUTO_CAPTURE_COUNT, len(corners),
@@ -286,6 +316,7 @@ def run_extrinsic(
     final_focal: float = 0.0
     state = State.EXTRINSIC_PREVIEW
     last_detection: tuple[tuple[float, float], float] | None = None
+    log_dir = _get_log_dir(camera_num, "extrinsic")
 
     while True:
         frame = source.capture()
@@ -316,6 +347,7 @@ def run_extrinsic(
                 if constants.MIN_FOCAL_LENGTH_MM <= focal <= constants.MAX_FOCAL_LENGTH_MM:
                     focal_samples.append(focal)
                     avg_focal = sum(focal_samples) / len(focal_samples)
+                    _save_frame(frame, log_dir, "extrinsic", len(focal_samples))
                     logger.info(
                         "Auto-sample %d/%d: radius=%.1f px, focal=%.4f mm (avg=%.4f)",
                         len(focal_samples), EXTRINSIC_AUTO_CAPTURE_COUNT,
@@ -465,7 +497,6 @@ def main() -> int:
         return 1
 
     cv2.namedWindow(WINDOW, cv2.WINDOW_NORMAL)
-    cv2.resizeWindow(WINDOW, constants.RESOLUTION_X, constants.RESOLUTION_Y)
 
     try:
         if args.mode in ("intrinsic", "full"):

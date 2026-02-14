@@ -19,16 +19,31 @@ FONT_SCALE = 1.0
 FONT_THICKNESS = 2
 LINE_HEIGHT = 35
 
+# Display scale factor — the frame is scaled up by this amount before showing.
+# Set to 1.0 for native resolution, 2.0 for double size, etc.
+DISPLAY_SCALE = 2.0
+
 
 def show_frame(
     window_name: str,
     image: np.ndarray,
     hud_lines: list[str] | None = None,
 ) -> None:
-    """Display *image* in a named window with an optional text overlay."""
+    """Display *image* in a named window with an optional text overlay.
+
+    The image is scaled up by DISPLAY_SCALE before display so the window
+    starts at a usable size regardless of the window manager.
+    """
     display = image.copy()
     if hud_lines:
         _draw_hud(display, hud_lines)
+    if DISPLAY_SCALE != 1.0:
+        h, w = display.shape[:2]
+        display = cv2.resize(
+            display,
+            (int(w * DISPLAY_SCALE), int(h * DISPLAY_SCALE)),
+            interpolation=cv2.INTER_LINEAR,
+        )
     cv2.imshow(window_name, display)
 
 

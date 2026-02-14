@@ -291,7 +291,7 @@ class RpicamSource:
         self._proc = subprocess.Popen(
             cmd,
             stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
         )
         self._buffer = b""
 
@@ -301,7 +301,10 @@ class RpicamSource:
             raise RuntimeError("rpicam-vid stream not running")
 
         while True:
-            chunk = self._proc.stdout.read(_PIPE_READ_SIZE)
+            # read1() returns as soon as ANY data is available (non-blocking
+            # on buffered data).  Plain read(n) waits for exactly n bytes,
+            # which stalls the stream.
+            chunk = self._proc.stdout.read1(_PIPE_READ_SIZE)
             if not chunk:
                 raise RuntimeError(
                     "rpicam-vid stream ended unexpectedly"

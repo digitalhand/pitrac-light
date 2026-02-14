@@ -26,12 +26,18 @@ logger = logging.getLogger(__name__)
 def detect_ball(
     image: np.ndarray,
     min_radius: int = 20,
-    max_radius: int = 200,
+    max_radius: int = 150,
     param1: float = 100,
-    param2: float = 30,
+    param2: float = 40,
     min_dist: int | None = None,
+    min_brightness: int = 140,
 ) -> tuple[tuple[float, float], float] | None:
-    """Detect a golf ball using HoughCircles.
+    """Detect a golf ball using HoughCircles with brightness validation.
+
+    The ball is expected to be white/bright.  After finding circle candidates,
+    each is validated by checking that the average brightness inside the circle
+    exceeds *min_brightness*.  This rejects false positives from turf, shadows,
+    or rig hardware that happen to have circular edges.
 
     Returns ((center_x, center_y), radius) or None if no ball found.
     """
@@ -55,11 +61,41 @@ def detect_ball(
     if circles is None:
         return None
 
-    # Take the best (first) circle
-    c = circles[0][0]
-    center = (float(c[0]), float(c[1]))
-    radius = float(c[2])
-    return center, radius
+    h, w = gray.shape[:2]
+
+    # Check each candidate (sorted by accumulator score) for brightness
+    for c in circles[0]:
+        cx, cy, r = float(c[0]), float(c[1]), float(c[2])
+
+        # Build a circular mask for the inner region of the detected circle
+        ri = max(int(r * 0.6), 1)  # inner 60% to avoid edge pixels
+        x0 = max(int(cx) - ri, 0)
+        y0 = max(int(cy) - ri, 0)
+        x1 = min(int(cx) + ri, w)
+        y1 = min(int(cy) + ri, h)
+
+        if x1 <= x0 or y1 <= y0:
+            continue
+
+        roi = gray[y0:y1, x0:x1]
+        mask = np.zeros(roi.shape, dtype=np.uint8)
+        cv2.circle(mask, (int(cx) - x0, int(cy) - y0), ri, 255, -1)
+
+        mean_brightness = cv2.mean(roi, mask=mask)[0]
+
+        if mean_brightness >= min_brightness:
+            logger.debug(
+                "Ball candidate at (%.0f, %.0f) r=%.1f brightness=%.0f — accepted",
+                cx, cy, r, mean_brightness,
+            )
+            return (cx, cy), r
+        else:
+            logger.debug(
+                "Ball candidate at (%.0f, %.0f) r=%.1f brightness=%.0f — rejected (dark)",
+                cx, cy, r, mean_brightness,
+            )
+
+    return None
 
 
 # ---------------------------------------------------------------------------

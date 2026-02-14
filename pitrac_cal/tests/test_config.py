@@ -165,21 +165,20 @@ class TestCameraAngles:
 class TestBallPosition:
     def test_straight_forward_rig(self):
         config = _make_config()
-        config["gs_config"]["calibration"]["kCalibrationRigType"] = "0"
+        config["gs_config"]["calibration"]["kCalibrationRigType"] = "1"
 
         pos = config_manager.get_ball_position(config, 1)
         assert pos == pytest.approx((-0.120, -0.28, 0.44))
 
     def test_skewed_rig(self):
         config = _make_config()
-        config["gs_config"]["calibration"]["kCalibrationRigType"] = "1"
-
+        # kCalibrationRigType=2 means skewed (matching C++ enum)
         pos = config_manager.get_ball_position(config, 2)
         assert pos == pytest.approx((0.0, 0.095, 0.435))
 
     def test_custom_rig(self):
         config = _make_config()
-        config["gs_config"]["calibration"]["kCalibrationRigType"] = "2"
+        config["gs_config"]["calibration"]["kCalibrationRigType"] = "3"
         config["gs_config"]["calibration"]["kCustomCalibrationRigPositionFromCamera1"] = [
             "0.1", "0.2", "0.3"
         ]

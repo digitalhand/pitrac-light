@@ -21,10 +21,11 @@ MAX_FOCAL_LENGTH_MM = 50.0
 # Camera angle sanity bound (degrees) — gs_calibration.cpp:264
 MAX_REASONABLE_ANGLE_DEG = 45.0
 
-# Calibration rig types — gs_calibration.cpp:86-101
-RIG_STRAIGHT_FORWARD = 0
-RIG_SKEWED_CAMERA1 = 1
-RIG_CUSTOM = 2
+# Calibration rig types — gs_calibration.h:36-41
+# enum CalibrationRigType { kStraightForwardCameras=1, kSkewedCamera1=2, kSCustomRig=3 }
+RIG_STRAIGHT_FORWARD = 1
+RIG_SKEWED_CAMERA1 = 2
+RIG_CUSTOM = 3
 
 # CharucoBoard defaults
 CHARUCO_COLS = 7

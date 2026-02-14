@@ -269,6 +269,17 @@ def run_extrinsic(
         *ball_pos, distance,
     )
 
+    if distance < 0.01:
+        logger.error(
+            "Ball distance is ~0 (position: %.3f, %.3f, %.3f). "
+            "Check golf_sim_config.json — the calibration ball position "
+            "values for camera %d and rig type are not set. "
+            "Look for kAutoCalibrationBaselineBallPositionFrom* or "
+            "kCustomCalibrationRigPositionFrom* keys under gs_config.calibration.",
+            *ball_pos, camera_num,
+        )
+        return None
+
     focal_samples: list[float] = []
     final_yaw: float = 0.0
     final_pitch: float = 0.0
@@ -454,6 +465,7 @@ def main() -> int:
         return 1
 
     cv2.namedWindow(WINDOW, cv2.WINDOW_NORMAL)
+    cv2.resizeWindow(WINDOW, constants.RESOLUTION_X, constants.RESOLUTION_Y)
 
     try:
         if args.mode in ("intrinsic", "full"):

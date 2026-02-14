@@ -1,11 +1,12 @@
-"""Camera source abstraction: rpicam-still capture or directory of images.
+"""Camera source abstraction: rpicam-vid streaming or directory of images.
 
 Provides a common interface so the calibration workflow works identically
 whether running on a Pi with a live camera or on a dev machine with saved images.
 
-On the Pi, frames are captured via rpicam-still (the same libcamera pipeline
-that the C++ pitrac_lm uses).  picamera2 has sensor-mode selection issues
-with the IMX296 global shutter camera, so we avoid it entirely.
+On the Pi, frames are captured via rpicam-vid MJPEG streaming (the same
+libcamera pipeline that the C++ pitrac_lm uses).  This is much faster than
+per-frame rpicam-still calls since the camera stays open and streams
+continuously.
 
 Before capturing, the IMX296 sensor format must be explicitly configured via
 media-ctl (the same step that the C++ pitrac_lm does in
@@ -29,6 +30,9 @@ import numpy as np
 from . import constants
 
 logger = logging.getLogger(__name__)
+
+# Size of chunks read from the rpicam-vid MJPEG pipe
+_PIPE_READ_SIZE = 65536
 
 
 class CameraSource(Protocol):
@@ -99,7 +103,7 @@ def _configure_imx296_sensor(
     Ports ConfigCameraForFullScreenWatching() and
     GetCmdLineForMediaCtlCropping() from libcamera_interface.cpp:842-1003.
 
-    This MUST be called before rpicam-still can capture at full resolution.
+    This MUST be called before rpicam-vid can capture at full resolution.
     Without it the sensor may default to a tiny 96x88 mode.
     """
     fmt = "Y10_1X10" if mono else "SBGGR10_1X10"
@@ -203,14 +207,35 @@ def _setup_tuning_file(camera_num: int, is_mono: bool) -> None:
         os.environ["LIBCAMERA_RPI_TUNING_FILE"] = tuning_file
 
 
+def _setup_imx296(camera_num: int, pitrac_camera_num: int) -> None:
+    """Discover and configure IMX296 sensor (media-ctl + tuning file)."""
+    media_info = _discover_imx296_media(camera_num)
+    if media_info is not None:
+        media_num, device_num = media_info
+        logger.info(
+            "Found IMX296 at /dev/media%d, device %d-001a",
+            media_num, device_num,
+        )
+        is_mono = _is_camera_mono(pitrac_camera_num)
+        _setup_tuning_file(pitrac_camera_num, is_mono)
+        _configure_imx296_sensor(media_num, device_num, mono=is_mono)
+    else:
+        logger.info(
+            "No IMX296 sensor found via media-ctl for camera %d "
+            "(may be a non-IMX296 camera, or media-ctl not available)",
+            camera_num,
+        )
+
+
 class RpicamSource:
-    """Capture frames via rpicam-still (Pi only).
+    """Capture frames via rpicam-vid MJPEG streaming (Pi only).
 
-    Uses the same libcamera/rpicam-apps pipeline as the C++ pitrac_lm binary,
-    which avoids the picamera2 sensor-mode bug on the IMX296.
+    Uses the same libcamera/rpicam-apps pipeline as the C++ pitrac_lm binary.
+    Streams MJPEG to a pipe for fast continuous capture instead of launching
+    rpicam-still per frame.
 
-    Before the first capture, configures the IMX296 sensor format via
-    media-ctl (matching the C++ ConfigCameraForFullScreenWatching flow).
+    Before streaming, configures the IMX296 sensor format via media-ctl
+    (matching the C++ ConfigCameraForFullScreenWatching flow).
     """
 
     def __init__(
@@ -221,78 +246,105 @@ class RpicamSource:
     ):
         self._camera_num = camera_num
         self._flip = flip
-        self._tmp = Path(tempfile.mkdtemp()) / "pitrac_cal_frame.png"
+        self._proc: subprocess.Popen | None = None
+        self._buffer = b""
 
-        # Verify rpicam-still is available
+        # Verify rpicam-vid is available
         try:
             subprocess.run(
-                ["rpicam-still", "--version"],
+                ["rpicam-vid", "--version"],
                 capture_output=True, check=True,
             )
         except FileNotFoundError:
             raise RuntimeError(
-                "rpicam-still not found. Install rpicam-apps or use --image-dir."
+                "rpicam-vid not found. Install rpicam-apps or use --image-dir."
             )
 
-        # Configure the IMX296 sensor via media-ctl before first capture
-        # (matches C++ ConfigCameraForFullScreenWatching)
-        media_info = _discover_imx296_media(camera_num)
-        if media_info is not None:
-            media_num, device_num = media_info
-            logger.info(
-                "Found IMX296 at /dev/media%d, device %d-001a",
-                media_num, device_num,
-            )
-            is_mono = _is_camera_mono(pitrac_camera_num)
-            _setup_tuning_file(pitrac_camera_num, is_mono)
-            _configure_imx296_sensor(media_num, device_num, mono=is_mono)
-        else:
-            logger.info(
-                "No IMX296 sensor found via media-ctl for camera %d "
-                "(may be a non-IMX296 camera, or media-ctl not available)",
-                camera_num,
-            )
+        # Configure the IMX296 sensor via media-ctl before streaming
+        _setup_imx296(camera_num, pitrac_camera_num)
 
-        # Take a test capture to confirm the camera works
-        self._run_capture()
-        test = cv2.imread(str(self._tmp))
-        if test is None:
-            raise RuntimeError("rpicam-still produced no output — check camera connection")
+        # Start rpicam-vid streaming MJPEG to stdout
+        self._start_stream()
+
+        # Read a test frame to confirm streaming works
+        test = self.capture()
         logger.info(
-            "RpicamSource ready (camera %d, %dx%d)",
+            "RpicamSource ready (camera %d, %dx%d, streaming)",
             camera_num, test.shape[1], test.shape[0],
         )
 
-    def _run_capture(self) -> None:
-        """Run rpicam-still to capture a single frame."""
+    def _start_stream(self) -> None:
+        """Start rpicam-vid as a background process streaming MJPEG to stdout."""
         cmd = [
-            "rpicam-still",
+            "rpicam-vid",
             "--camera", str(self._camera_num),
             "--width", str(constants.RESOLUTION_X),
             "--height", str(constants.RESOLUTION_Y),
-            "-o", str(self._tmp),
-            "--immediate",
+            "--codec", "mjpeg",
+            "--framerate", "10",
             "--nopreview",
             "-n",
+            "-t", "0",
+            "-o", "-",
         ]
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        if result.returncode != 0:
-            raise RuntimeError(
-                f"rpicam-still failed (exit {result.returncode}): {result.stderr.strip()}"
-            )
+        logger.info("Starting stream: %s", " ".join(cmd))
+        self._proc = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        self._buffer = b""
 
     def capture(self) -> np.ndarray:
-        self._run_capture()
-        frame = cv2.imread(str(self._tmp))
-        if frame is None:
-            raise RuntimeError("Failed to read captured frame")
-        if self._flip:
-            frame = cv2.flip(frame, -1)
-        return frame
+        """Read the next MJPEG frame from the rpicam-vid pipe."""
+        if self._proc is None or self._proc.poll() is not None:
+            raise RuntimeError("rpicam-vid stream not running")
+
+        while True:
+            chunk = self._proc.stdout.read(_PIPE_READ_SIZE)
+            if not chunk:
+                raise RuntimeError(
+                    "rpicam-vid stream ended unexpectedly"
+                )
+            self._buffer += chunk
+
+            # Find a complete JPEG: starts with FF D8, ends with FF D9
+            start = self._buffer.find(b"\xff\xd8")
+            if start == -1:
+                # No JPEG start yet, discard buffer up to last byte
+                self._buffer = self._buffer[-1:]
+                continue
+
+            end = self._buffer.find(b"\xff\xd9", start + 2)
+            if end == -1:
+                # Have start but no end yet — keep reading
+                continue
+
+            # Extract complete JPEG and advance buffer
+            jpeg_data = self._buffer[start : end + 2]
+            self._buffer = self._buffer[end + 2 :]
+
+            frame = cv2.imdecode(
+                np.frombuffer(jpeg_data, dtype=np.uint8),
+                cv2.IMREAD_COLOR,
+            )
+            if frame is None:
+                # Corrupted JPEG, skip and try next
+                continue
+
+            if self._flip:
+                frame = cv2.flip(frame, -1)
+            return frame
 
     def release(self) -> None:
-        if self._tmp.exists():
-            self._tmp.unlink()
+        if self._proc is not None:
+            self._proc.terminate()
+            try:
+                self._proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                self._proc.kill()
+                self._proc.wait()
+            self._proc = None
         logger.info("RpicamSource released")
 
 
@@ -352,7 +404,7 @@ def create_source(
 ) -> CameraSource:
     """Factory: return a DirectorySource if *image_dir* given, else RpicamSource.
 
-    rpicam-still uses 0-based camera indices.  Camera 1 in PiTrac maps to
+    rpicam-vid uses 0-based camera indices.  Camera 1 in PiTrac maps to
     index 0 on a two-Pi system (each Pi has one camera) and also on a
     single-Pi system (camera 1 is at slot 0, camera 2 at slot 1).
     See libcamera_interface.cpp:888 / 1178-1180.
@@ -361,7 +413,7 @@ def create_source(
         return DirectorySource(image_dir)
     rpicam_index = camera_num - 1
     flip = _is_upside_down(camera_num)
-    logger.info("Mapping PiTrac camera %d → rpicam-still --camera %d", camera_num, rpicam_index)
+    logger.info("Mapping PiTrac camera %d → rpicam-vid --camera %d", camera_num, rpicam_index)
     return RpicamSource(
         camera_num=rpicam_index,
         flip=flip,

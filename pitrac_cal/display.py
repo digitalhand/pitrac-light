@@ -15,9 +15,9 @@ WHITE = (255, 255, 255)
 BG_DARK = (30, 30, 30)
 
 FONT = cv2.FONT_HERSHEY_SIMPLEX
-FONT_SCALE = 0.55
-FONT_THICKNESS = 1
-LINE_HEIGHT = 22
+FONT_SCALE = 1.0
+FONT_THICKNESS = 2
+LINE_HEIGHT = 35
 
 
 def show_frame(
@@ -43,7 +43,7 @@ def draw_ball_detection(
     r = int(round(radius))
 
     cv2.circle(out, (cx, cy), r, GREEN, 2)
-    cv2.drawMarker(out, (cx, cy), CYAN, cv2.MARKER_CROSS, 20, 1)
+    cv2.drawMarker(out, (cx, cy), CYAN, cv2.MARKER_CROSS, 30, 2)
 
     label = f"r={radius:.1f}px  ({cx},{cy})"
     cv2.putText(out, label, (cx + r + 8, cy), FONT, FONT_SCALE, GREEN, FONT_THICKNESS)

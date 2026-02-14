@@ -26,6 +26,9 @@ func init() {
 	runCmd.AddCommand(runCalibrateCmd)
 	runCmd.AddCommand(runAutoCalibrateCmd)
 	runCmd.AddCommand(runShutdownCmd)
+	runCmd.AddCommand(runCalibrateGUICmd)
+
+	runCalibrateGUICmd.Flags().String("mode", "full", "calibration mode: intrinsic, extrinsic, or full")
 }
 
 var runCmd = &cobra.Command{
@@ -73,6 +76,62 @@ var runShutdownCmd = &cobra.Command{
 	Use:   "shutdown",
 	Short: "Shutdown all PiTrac instances",
 	RunE:  makeRunFunc("shutdown"),
+}
+
+var runCalibrateGUICmd = &cobra.Command{
+	Use:   "calibrate-gui",
+	Short: "Launch camera calibration GUI (CharucoBoard + extrinsic)",
+	RunE:  runCalibrateGUI,
+}
+
+func runCalibrateGUI(cmd *cobra.Command, args []string) error {
+	cameraNum, _ := cmd.Flags().GetInt("camera")
+	dryRun, _ := cmd.Flags().GetBool("dry-run")
+	mode, _ := cmd.Flags().GetString("mode")
+
+	if cameraNum != 1 && cameraNum != 2 {
+		return fmt.Errorf("--camera must be 1 or 2, got %d", cameraNum)
+	}
+
+	pitracRoot := strings.TrimSpace(os.Getenv("PITRAC_ROOT"))
+	if pitracRoot == "" {
+		detected, err := detectRepoRoot()
+		if err != nil {
+			return fmt.Errorf("PITRAC_ROOT not set and could not detect repo root: %w", err)
+		}
+		pitracRoot = detected
+	}
+
+	pitracCal := filepath.Join(pitracRoot, "pitrac_cal")
+	if _, err := os.Stat(filepath.Join(pitracCal, "__main__.py")); err != nil {
+		return fmt.Errorf("pitrac_cal not found at %s\nEnsure PITRAC_ROOT is correct", pitracCal)
+	}
+
+	configPath := filepath.Join(pitracRoot, "src", "golf_sim_config.json")
+
+	pyArgs := []string{
+		"-m", "pitrac_cal",
+		"--camera", fmt.Sprintf("%d", cameraNum),
+		"--mode", mode,
+		"--config", configPath,
+	}
+
+	if dryRun {
+		fmt.Println("python3 " + strings.Join(pyArgs, " "))
+		return nil
+	}
+
+	c := exec.Command("python3", pyArgs...)
+	c.Dir = pitracRoot
+	c.Stdin = os.Stdin
+	c.Stdout = os.Stdout
+	c.Stderr = os.Stderr
+	c.Env = append(os.Environ(), "DISPLAY=:0.0")
+
+	if err := c.Run(); err != nil {
+		return fmt.Errorf("pitrac-cal failed: %w", err)
+	}
+	return nil
 }
 
 func makeRunFunc(mode string) func(*cobra.Command, []string) error {

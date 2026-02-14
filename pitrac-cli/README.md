@@ -191,6 +191,7 @@ pitrac-cli run cam             [--camera <1|2>] [--dry-run]
 pitrac-cli run calibrate       [--camera <1|2>] [--dry-run]
 pitrac-cli run auto-calibrate  [--camera <1|2>] [--dry-run]
 pitrac-cli run shutdown        [--dry-run]
+pitrac-cli run calibrate-gui   [--camera <1|2>] [--mode <intrinsic|extrinsic|full>] [--dry-run]
 ```
 
 Shared flags:
@@ -208,6 +209,7 @@ Each subcommand resolves the binary at `$PITRAC_ROOT/src/build/pitrac_lm`, build
 | `calibrate` | `--system_mode camera1Calibrate` |
 | `auto-calibrate` | `--system_mode camera1AutoCalibrate` |
 | `shutdown` | `--shutdown` |
+| `calibrate-gui` | Launches `python3 -m pitrac_cal` (see [`pitrac_cal/README.md`](../pitrac_cal/README.md)) |
 
 Use `--dry-run` to inspect the resolved command before running:
 
@@ -215,6 +217,22 @@ Use `--dry-run` to inspect the resolved command before running:
 pitrac-cli run pulse-test --dry-run
 pitrac-cli run still --camera 2 --dry-run
 ```
+
+**`calibrate-gui`** launches the Python-based calibration GUI (`pitrac_cal`) instead of `pitrac_lm`. It requires Python 3.9+, OpenCV with Python bindings, and picamera2 on the Pi.
+
+```bash
+pitrac-cli run calibrate-gui --camera 1 --mode full         # intrinsic then extrinsic
+pitrac-cli run calibrate-gui --camera 1 --mode intrinsic    # lens calibration only
+pitrac-cli run calibrate-gui --camera 2 --mode extrinsic    # focal length + angles only
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--camera` | `1` | Camera number (1 or 2) |
+| `--mode` | `full` | `intrinsic`, `extrinsic`, or `full` |
+| `--dry-run` | `false` | Print the `python3` command without executing |
+
+The command sets `DISPLAY=:0.0` for VNC compatibility. See [`pitrac_cal/README.md`](../pitrac_cal/README.md) for the full calibration workflow, keyboard controls, and troubleshooting.
 
 ### `build`
 Build PiTrac from source using Meson + Ninja.

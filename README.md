@@ -71,6 +71,7 @@ pitrac-cli --help
 | `src/Camera`, `src/ImageAnalysis` | Clean-architecture bounded contexts for camera IO and tee/motion/flight analysis. |
 | `src/RunScripts/` | Shell helpers for common Pi workflows (`runCam1.sh`, `runAutoCalibrateCam2.sh`, etc.). |
 | `src/sim/` | Simulator integrations (`sim/common`, `sim/gspro`) that bridge PiTrac shot data into GSPro. |
+| `pitrac_cal/` | Python-based camera calibration GUI (intrinsic + extrinsic). See [`pitrac_cal/README.md`](pitrac_cal/README.md). |
 | `assets/models/` | ONNX / PyTorch model files used for local inference. |
 | `assets/diagram/`, `assets/images/` | PlantUML sources and rendered architecture diagrams. |
 | `PiTrac.sln` | Optional Visual Studio solution for Windows developers. |
@@ -265,9 +266,10 @@ pitrac-cli run pulse-test           # strobe/shutter pulse test
 pitrac-cli run still                # single still capture
 pitrac-cli run ball-location        # continuous ball detection
 pitrac-cli run shutdown             # shutdown all PiTrac instances
+pitrac-cli run calibrate-gui        # camera calibration GUI (CharucoBoard + extrinsic)
 ```
 
-Use `--camera 2` for camera 2 variants, and `--dry-run` to preview the resolved command.
+Use `--camera 2` for camera 2 variants, and `--dry-run` to preview the resolved command. The `calibrate-gui` subcommand also accepts `--mode intrinsic|extrinsic|full` (default `full`). See [`pitrac_cal/README.md`](pitrac_cal/README.md) for the full calibration workflow.
 
 **Manual launch:**
 

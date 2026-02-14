@@ -4,6 +4,7 @@
  */
 
 #include <algorithm>
+#include <filesystem>
 #include "gs_format_lib.h"
 #include <boost/log/sinks/sync_frontend.hpp>
 #include <boost/log/sinks/basic_sink_backend.hpp>
@@ -84,6 +85,19 @@ namespace golf_sim {
 
         if (!GolfSimOptions::GetCommandLineOptions().base_image_logging_dir_.empty()) {
             kBaseImageLoggingDir = GolfSimOptions::GetCommandLineOptions().base_image_logging_dir_;
+            if (!kBaseImageLoggingDir.empty() &&
+                kBaseImageLoggingDir.back() != '/' &&
+                kBaseImageLoggingDir.back() != '\\') {
+                kBaseImageLoggingDir += '/';
+            }
+
+            // Ensure the image logging directory actually exists
+            std::error_code ec;
+            std::filesystem::create_directories(kBaseImageLoggingDir, ec);
+            if (ec) {
+                std::cerr << "Warning: could not create image logging directory "
+                          << kBaseImageLoggingDir << ": " << ec.message() << std::endl;
+            }
         }
         else {
 #ifdef __unix__

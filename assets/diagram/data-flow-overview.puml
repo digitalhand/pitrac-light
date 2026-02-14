@@ -6,53 +6,55 @@ skinparam backgroundColor white
 skinparam sequenceMessageAlign center
 skinparam responseMessageBelowArrow true
 
-actor User
-participant "Browser UI" as UI
-participant "FastAPI\nserver.py" as API
-participant "ConfigurationManager" as CFG
-participant "~/.pitrac/config\nJSON files" as FILES
-participant "PiTracProcessManager" as PM
-participant "pitrac_lm\n(camera1/camera2)" as LM
-participant "ActiveMQ\nGolf.Sim topic" as MQ
-participant "ActiveMQListener\n+ ShotDataParser" as LISTENER
-participant "ShotDataStore" as STORE
-participant "~/LM_Shares/Images" as IMGDIR
+actor "User / Operator" as User
+participant "pitrac-cli (Go)\nor RunScripts (Bash)" as CLI
+participant "golf_sim_config.json\n+ environment vars" as CFG
+participant "pitrac_lm\n(camera1)" as CAM1
+participant "pitrac_lm\n(camera2)" as CAM2
+participant "ActiveMQ Broker\nOpenWire :61616" as MQ
+participant "GSPro Simulator\nTCP :921" as SIM
+participant "Image Directory\n~/LM_Shares/Images" as IMGDIR
 
 == Configuration Flow ==
-User -> UI : Change settings
-UI -> API : PUT /api/config/{key}
-API -> CFG : validate + set_config(key,value)
-CFG -> FILES : update user_settings.json\nor calibration_data.json
-API -> CFG : generate_golf_sim_config()
-CFG -> FILES : write generated_golf_sim_config.json
-API --> UI : success + requires_restart
+User -> CLI : pitrac-cli config set <key> <value>\nor edit golf_sim_config.json directly
+CLI -> CFG : validate + write config JSON
+CLI --> User : success / validation error
 
 == Process Start Flow ==
-User -> UI : Start PiTrac
-UI -> API : POST /api/pitrac/start
-API -> PM : start()
-PM -> CFG : generate_golf_sim_config()\nload CLI/environment metadata
-PM -> LM : spawn camera2 then camera1\n(single-Pi), with config + env
-PM --> API : pids/status
-API --> UI : started
+User -> CLI : pitrac-cli run\nor source runPiTracCommon.sh && runCam1.sh
+CLI -> CFG : load config JSON\n+ resolve PITRAC_* env vars
+CLI -> CAM2 : spawn pitrac_lm --system_mode camera2\n(starts first or simultaneously)
+CLI -> CAM1 : spawn pitrac_lm --system_mode camera1
 
-== Runtime Shot Telemetry ==
-LM -> IMGDIR : write shot/status images
-LM -> MQ : publish GolfSimIPCMessage\n(msgpack payload; results base64-wrapped)
-LISTENER -> MQ : subscribe /topic/Golf.Sim (STOMP)
-MQ -> LISTENER : message frame
-LISTENER -> STORE : parse + update ShotData
-LISTENER -> API : broadcast websocket payload
-API -> UI : /ws JSON update\n(speed, spin, result_type, image paths)
-UI -> API : GET /images/{file}\nor /api/images/{file}
-API -> IMGDIR : read image file
-API --> UI : image bytes
+note over CAM2
+  Camera2 initializes IPC,
+  enters WaitingForCameraArmMessage,
+  idles until Camera1 signals.
+end note
 
-== Optional Calibration Callback Path ==
-LM -> API : PUT /api/config/\ngs_config.cameras.kCamera{N}FocalLength\nand kCamera{N}Angles
-API -> CFG : set calibration fields
-CFG -> FILES : update calibration_data.json
-API -> CFG : generate_golf_sim_config()
-CFG -> FILES : refresh generated_golf_sim_config.json
+== Runtime: Camera-to-Camera IPC ==
+CAM1 -> MQ : publish GolfSimIPCMessage\n(msgpack: kRequestForCamera2Image)
+MQ -> CAM2 : deliver arm message
+CAM2 -> MQ : publish GolfSimIPCMessage\n(msgpack: kCamera2Image + captured frame)
+MQ -> CAM1 : deliver camera2 image
+
+== Runtime: Shot Results ==
+CAM1 -> CAM1 : ProcessReceivedCam2Image()\nball detection + spin analysis
+CAM1 -> SIM : SendResultsToGolfSims()\nJSON over TCP :921
+CAM1 -> MQ : publish GolfSimIPCMessage\n(msgpack: kResults)
+CAM1 -> IMGDIR : write shot/debug images
+CAM2 -> IMGDIR : write capture images
+
+note over MQ
+  IPC results on ActiveMQ topic
+  are available for any external
+  subscriber (monitoring tools, etc.)
+end note
+
+== Optional Calibration Flow ==
+User -> CLI : runAutoCalibrateCam1.sh\nor runAutoCalibrateCam2.sh
+CLI -> CAM1 : pitrac_lm --system_mode camera1AutoCalibrate
+CAM1 -> CFG : calibration results written\nto golf_sim_config.json
+CAM1 -> IMGDIR : calibration artifact images
 
 @enduml

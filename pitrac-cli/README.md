@@ -162,7 +162,7 @@ Default env file path:
 - `PITRAC_ROOT`: auto-detected repo root (or `/path/to/pitrac-light` fallback)
 - `PITRAC_MSG_BROKER_FULL_ADDRESS`: `tcp://127.0.0.1:61616`
 - `PITRAC_WEBSERVER_SHARE_DIR`: `$HOME/LM_Shares/Images/`
-- `PITRAC_BASE_IMAGE_LOGGING_DIR`: `$HOME/PiTracLogs`
+- `PITRAC_BASE_IMAGE_LOGGING_DIR`: `$HOME/LM_Shares/PiTracLogs`
 - `PITRAC_WEB_SERVER_URL`: `http://localhost:8080`
 
 ### `config`

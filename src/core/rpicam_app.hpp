@@ -21,7 +21,7 @@
 #include <variant>
 #include <vector>
 
-#include <libcamera/base/span.h>
+#include "core/libcamera_span_compat.hpp"
 #include <libcamera/camera.h>
 #include <libcamera/camera_manager.h>
 #include <libcamera/control_ids.h>

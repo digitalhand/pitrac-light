@@ -5,7 +5,7 @@
             "kLogIntermediateSpinImagesToFile": "1",
             "kLogWebserverImagesToFile": "1",
             "kLogDiagnosticImagesToUniqueFiles": "1",
-            "kLinuxBaseImageLoggingDir": ".\/",
+            "kLinuxBaseImageLoggingDir": "./",
             "kPCBaseImageLoggingDir": "./Images/"
         },
         "modes": {
@@ -160,7 +160,7 @@
         },
         "user_interface": {
             "kWebServerTomcatShareDirectory": "WebShare",
-            "kWebServerShareDirectory": "USE CMD LINE - Example:  --web_server_share_dir \/home\/PiTracUser\/LM_Shares\/Images\/",
+            "kWebServerShareDirectory": "USE CMD LINE - Example:  --web_server_share_dir /home/PiTracUser/LM_Shares/Images/",
             "kWebServerResultBallExposureCandidates": "ball_exposure_candidates",
             "kWebServerResultSpinBall1Image": "spin_ball_1_gray_image1",
             "kWebServerResultSpinBall2Image": "spin_ball_2_gray_image1",
@@ -284,7 +284,7 @@
             "kMaxWatchingCropHeight": "88"
         },
         "cameras": {
-            "kCameraMotionDetectSettings": "assets\/motion_detect.json",
+            "kCameraMotionDetectSettings": "assets/motion_detect.json",
             "kCamera1FocalLength": "5.8675451035986486",
             "kCamera2FocalLength": "5.5107136256866491",
             "comment - kCamera1Gain = 6 and kCamera1Contrast=1.3 is good for practice ball. For regular ball, 3 and 1.5": "0",
@@ -463,7 +463,14 @@
                 "0.466"
             ],
             "kNumberPicturesForFocalLengthAverage": "6",
-            "kTestAutoCalibrationFileName": "M:\\Dev\\PiTrac\\Software\\LMSourceCode\\Images\\autocalibrate_cam1_still_picture_1.png"
+            "kTestAutoCalibrationFileName": "~/LM_Shares/Images/autocalibrate_cam1_still_picture_1.png",
+            "kCalibrationRigType": "2",
+            "kCustomCalibrationRigPositionFromCamera1": ["0.0", "0.0", "0.0"],
+            "kCustomCalibrationRigPositionFromCamera2": ["0.0", "0.0", "0.0"],
+            "kAutoCalibrationBaselineBallPositionFromCamera1MetersForStraightOutCameras": ["-0.120", "-0.28", "0.44"],
+            "kAutoCalibrationBaselineBallPositionFromCamera2MetersForStraightOutCameras": ["0.00", "0.095", "0.435"],
+            "kAutoCalibrationBaselineBallPositionFromCamera1MetersForSkewedCameras": ["-0.120", "-0.28", "0.44"],
+            "kAutoCalibrationBaselineBallPositionFromCamera2MetersForSkewedCameras": ["0.00", "0.095", "0.435"]
         },
         "golf_simulator_interfaces": {
             "kLaunchMonitorIdString": "PiTrac LM 0.1",
@@ -477,7 +484,7 @@
         },
         "club_data": {
             "kEnableClubImages": "0",
-            "kClubImageOutputDir": "\/home\/PiTracUserName\/LM_Shares\/Images\/",
+            "kClubImageOutputDir": "/home/PiTracUserName/LM_Shares/Images/",
             "kNumberFramesToSaveBeforeHit": "6",
             "kNumberFramesToSaveAfterHit": "8",
             "kClubImageWidthPixels": "340",
@@ -502,8 +509,8 @@
             "kTwoImageTestStrobedImage": "gs_log_img__log_cam2_last_strobed_img_Shot_2_2025-Aug-05_09.40.44.png",
             "OLD_kTwoImageTestTeedBallImage": "log_ball_final_found_ball_img.png",
             "OLD_kTwoImageTestStrobedImage": "log_cam2_last_strobed_img.png",
-            "kAutomatedTestSuiteDirectory": "\/home\/<PiTrac-Username>\/Dev\/PiTrac\/Software\/LMSourceCode\/Testing\/TestSuite_2025_02_07\/",
-            "OLDkAutomatedTestSuiteDirectory": "M:\/Dev\/PiTrac\/Software\/LMSourceCode\/Testing\/TestSuite_2025_02_07\/",
+            "kAutomatedTestSuiteDirectory": "~/LM_Shares/Testing/TestSuite_2025_02_07/",
+            "OLDkAutomatedTestSuiteDirectory": "~/LM_Shares/Testing/TestSuite_2025_02_07/",
             "kAutomatedTestExpectedResultsCSV": "Uneekor Comparison 2025-02-07_Small_Test.csv",
             "kAutomatedTestResultsCSV": "PiTrac_Test_Results.csv",
             "kAutomatedTestToleranceBallSpeedMPH": "4",

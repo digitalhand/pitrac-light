@@ -451,8 +451,14 @@ namespace golf_sim {
             case SystemMode::kCamera1TestStandalone:
             case SystemMode::kCamera1:
             {
+                cv::Mat cam2_image = message.GetImageMat();
+                if (cam2_image.empty()) {
+                    GS_LOG_MSG(warning, "DispatchCamera2ImageMessage received empty image payload. Ignoring.");
+                    break;
+                }
+
                 // Let the FSM deal with the message by entering a related message (including the image) into the queue
-                GolfSimEventElement cam2ImageMessageReceived{ new GolfSimEvent::Camera2ImageReceived{ message.GetImageMat() } };
+                GolfSimEventElement cam2ImageMessageReceived{ new GolfSimEvent::Camera2ImageReceived{ cam2_image } };
                 GS_LOG_TRACE_MSG(trace, "    QueueEvent: " + cam2ImageMessageReceived.e_->Format());
                 GolfSimEventQueue::QueueEvent(cam2ImageMessageReceived);
 

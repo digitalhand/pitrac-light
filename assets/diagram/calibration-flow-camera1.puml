@@ -12,27 +12,24 @@ skinparam activity {
 
 start
 
-:Optional pre-check:\nPOST /api/calibration/ball-location/camera1;
-:Optional still capture:\nPOST /api/calibration/capture/camera1;
-:Validate image quality in\n~/LM_Shares/Images;
+:User runs calibration script:\nrunAutoCalibrateCam1.sh\nor: pitrac-cli run --mode camera1AutoCalibrate;
 
-:POST /api/calibration/auto/camera1;
-:CalibrationManager creates session\nfor expected keys:\n- gs_config.cameras.kCamera1FocalLength\n- gs_config.cameras.kCamera1Angles;
-:Launch pitrac_lm\n--system_mode=camera1AutoCalibrate\n(+ --run_single_pi in single mode);
+:Script sources runPiTracCommon.sh\nto load PITRAC_* environment variables;
 
-:Hybrid completion detection:\n1) API callbacks\n2) Process exit\n3) Timeout (40s);
+:Spawns pitrac_lm\n--system_mode camera1AutoCalibrate\n--search_center_x 750 --search_center_y 500\n--artifact_save_level=all;
 
-if (Both callback keys received?) then (yes)
-  :PUT /api/config updates camera1\nfocal length + angles;
-  :Write values into\n~/.pitrac/config/calibration_data.json;
-  :Regenerate\n~/.pitrac/config/generated_golf_sim_config.json;
+:pitrac_lm performs auto-calibration:\n- Detects calibration target\n- Computes kCamera1FocalLength\n- Computes kCamera1Angles;
+
+if (Calibration successful?) then (yes)
+  :Write calibration results\ninto golf_sim_config.json;
+  :Save calibration artifact images\nto ~/LM_Shares/Images;
 else (no)
-  :Fallback to process result\nand output parsing for failure markers;
+  :Log error and exit with\nnon-zero status;
 endif
 
-:Status exposed via\nGET /api/calibration/status;
-:Calibration values exposed via\nGET /api/calibration/data;
-:Validate resulting calibration images\nin ~/LM_Shares/Images;
+:Process exits;
+
+:User validates calibration images\nin ~/LM_Shares/Images;
 
 stop
 @enduml

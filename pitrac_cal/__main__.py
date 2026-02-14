@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import logging
 import sys
+import time
 from enum import Enum, auto
 
 import cv2
@@ -26,6 +27,11 @@ logger = logging.getLogger("pitrac-cal")
 
 WINDOW = "pitrac-cal"
 
+# Auto-capture settings
+INTRINSIC_AUTO_CAPTURE_COUNT = 15
+INTRINSIC_AUTO_CAPTURE_INTERVAL = 2.0  # seconds between captures
+EXTRINSIC_AUTO_CAPTURE_COUNT = 6
+
 
 # ---------------------------------------------------------------------------
 # State machine
@@ -33,8 +39,10 @@ WINDOW = "pitrac-cal"
 
 class State(Enum):
     INTRINSIC_PREVIEW = auto()
+    INTRINSIC_AUTO = auto()
     INTRINSIC_DONE = auto()
     EXTRINSIC_PREVIEW = auto()
+    EXTRINSIC_AUTO = auto()
     EXTRINSIC_DONE = auto()
     FINISHED = auto()
 
@@ -42,36 +50,56 @@ class State(Enum):
 def _build_intrinsic_hud(captures: int, corners_found: bool) -> list[str]:
     status = "CORNERS DETECTED" if corners_found else "no corners"
     return [
-        f"== INTRINSIC CALIBRATION (captures: {captures}) ==",
+        f"INTRINSIC CALIBRATION  captures: {captures}",
         f"Status: {status}",
-        "SPACE=capture  ENTER=calibrate  G=gen board  R=reset  Q=quit",
+        "ENTER=start calibration  Q=quit",
+    ]
+
+
+def _build_intrinsic_auto_hud(
+    captures: int, target: int, corners_found: bool,
+) -> list[str]:
+    status = "CORNERS DETECTED" if corners_found else "waiting for board..."
+    return [
+        f"AUTO-CAPTURING  {captures}/{target}",
+        f"{status}  --  move board around slowly",
+        "Q=cancel",
     ]
 
 
 def _build_intrinsic_done_hud(rms: float, undistort_on: bool) -> list[str]:
     return [
-        f"== CALIBRATION COMPLETE  RMS={rms:.4f} px ==",
+        f"CALIBRATION COMPLETE  RMS={rms:.4f} px",
         f"Undistort preview: {'ON' if undistort_on else 'OFF'}",
-        "U=toggle undistort  S=save to config  Q=quit/next",
+        "U=undistort  S=save  Q=quit/next",
     ]
 
 
 def _build_extrinsic_hud(samples: int, avg_focal: float, detected: bool) -> list[str]:
     det = "BALL DETECTED" if detected else "no ball"
-    avg_str = f"{avg_focal:.4f}" if samples > 0 else "—"
+    avg_str = f"{avg_focal:.4f}" if samples > 0 else "---"
     return [
-        f"== EXTRINSIC CALIBRATION (samples: {samples}, avg focal: {avg_str} mm) ==",
+        f"EXTRINSIC CALIBRATION  samples: {samples}  avg: {avg_str} mm",
         f"Status: {det}",
-        "SPACE=capture  ENTER=finalize  Q=quit",
+        "ENTER=start calibration  Q=quit",
+    ]
+
+
+def _build_extrinsic_auto_hud(samples: int, target: int, detected: bool) -> list[str]:
+    det = "BALL DETECTED" if detected else "waiting for ball..."
+    return [
+        f"AUTO-CAPTURING  {samples}/{target}",
+        f"{det}",
+        "Q=cancel",
     ]
 
 
 def _build_extrinsic_done_hud(focal: float, yaw: float, pitch: float) -> list[str]:
     return [
-        f"== EXTRINSIC COMPLETE ==",
+        "EXTRINSIC COMPLETE",
         f"Focal length: {focal:.4f} mm",
-        f"Camera angles: yaw={yaw:.4f}  pitch={pitch:.4f} deg",
-        "S=save to config  Q=quit",
+        f"Angles: yaw={yaw:.4f}  pitch={pitch:.4f} deg",
+        "S=save  Q=quit",
     ]
 
 
@@ -94,6 +122,7 @@ def run_intrinsic(
     result: intrinsic.IntrinsicResult | None = None
     undistort_on = False
     state = State.INTRINSIC_PREVIEW
+    last_auto_capture: float = 0.0
 
     while True:
         frame = source.capture()
@@ -105,6 +134,43 @@ def run_intrinsic(
                 vis = display.draw_charuco_corners(vis, corners, ids)
             hud = _build_intrinsic_hud(len(all_corners), corners is not None)
             display.show_frame(WINDOW, vis, hud)
+
+        elif state == State.INTRINSIC_AUTO:
+            vis = frame.copy()
+            if corners is not None:
+                vis = display.draw_charuco_corners(vis, corners, ids)
+
+            # Auto-capture every INTRINSIC_AUTO_CAPTURE_INTERVAL seconds
+            # when corners are detected
+            now = time.monotonic()
+            if (corners is not None
+                    and now - last_auto_capture >= INTRINSIC_AUTO_CAPTURE_INTERVAL):
+                all_corners.append(corners)
+                all_ids.append(ids)
+                last_auto_capture = now
+                logger.info(
+                    "Auto-captured %d/%d (%d corners)",
+                    len(all_corners), INTRINSIC_AUTO_CAPTURE_COUNT, len(corners),
+                )
+
+            hud = _build_intrinsic_auto_hud(
+                len(all_corners), INTRINSIC_AUTO_CAPTURE_COUNT,
+                corners is not None,
+            )
+            display.show_frame(WINDOW, vis, hud)
+
+            # Auto-calibrate once we have enough
+            if len(all_corners) >= INTRINSIC_AUTO_CAPTURE_COUNT:
+                h, w = frame.shape[:2]
+                try:
+                    result = intrinsic.calibrate(
+                        all_corners, all_ids, board, (w, h),
+                    )
+                    state = State.INTRINSIC_DONE
+                    logger.info("Calibration done: RMS=%.4f", result.rms_error)
+                except Exception as e:
+                    logger.error("Calibration failed: %s", e)
+                    state = State.INTRINSIC_PREVIEW
 
         elif state == State.INTRINSIC_DONE and result is not None:
             vis = frame.copy()
@@ -119,27 +185,42 @@ def run_intrinsic(
         key = cv2.waitKey(30) & 0xFF
 
         if key == ord("q"):
-            break
+            if state == State.INTRINSIC_AUTO:
+                # Cancel auto-capture, go back to preview
+                state = State.INTRINSIC_PREVIEW
+                all_corners.clear()
+                all_ids.clear()
+                logger.info("Auto-capture cancelled")
+            else:
+                break
 
-        elif key == ord(" ") and state == State.INTRINSIC_PREVIEW:
+        elif key == 13 and state == State.INTRINSIC_PREVIEW:  # ENTER
+            # Start auto-capture mode
+            all_corners.clear()
+            all_ids.clear()
+            last_auto_capture = 0.0
+            state = State.INTRINSIC_AUTO
+            logger.info(
+                "Auto-capture started — move board around slowly "
+                "(capturing %d frames, one every %.0fs)",
+                INTRINSIC_AUTO_CAPTURE_COUNT,
+                INTRINSIC_AUTO_CAPTURE_INTERVAL,
+            )
+
+        elif key == ord(" ") and state in (
+            State.INTRINSIC_PREVIEW, State.INTRINSIC_AUTO,
+        ):
+            # Manual single capture (still works as before)
             if corners is not None:
                 all_corners.append(corners)
                 all_ids.append(ids)
-                logger.info("Captured frame %d (%d corners)", len(all_corners), len(corners))
+                last_auto_capture = time.monotonic()
+                logger.info(
+                    "Captured frame %d (%d corners)",
+                    len(all_corners), len(corners),
+                )
             else:
                 logger.warning("No corners detected — move the board into view")
-
-        elif key == 13 and state == State.INTRINSIC_PREVIEW:  # ENTER
-            if len(all_corners) < 3:
-                logger.warning("Need at least 3 captures (have %d)", len(all_corners))
-                continue
-            h, w = frame.shape[:2]
-            try:
-                result = intrinsic.calibrate(all_corners, all_ids, board, (w, h))
-                state = State.INTRINSIC_DONE
-                logger.info("Calibration done: RMS=%.4f", result.rms_error)
-            except Exception as e:
-                logger.error("Calibration failed: %s", e)
 
         elif key == ord("u") and state == State.INTRINSIC_DONE:
             undistort_on = not undistort_on
@@ -155,9 +236,12 @@ def run_intrinsic(
             intrinsic.generate_board_image(out)
             logger.info("Board image saved to %s", out)
 
-        elif key == ord("r") and state == State.INTRINSIC_PREVIEW:
+        elif key == ord("r") and state in (
+            State.INTRINSIC_PREVIEW, State.INTRINSIC_AUTO,
+        ):
             all_corners.clear()
             all_ids.clear()
+            state = State.INTRINSIC_PREVIEW
             logger.info("Reset all captures")
 
     return result
@@ -210,6 +294,72 @@ def run_extrinsic(
             hud = _build_extrinsic_hud(len(focal_samples), avg_focal, detection is not None)
             display.show_frame(WINDOW, vis, hud)
 
+        elif state == State.EXTRINSIC_AUTO:
+            vis = frame.copy()
+            if detection is not None:
+                vis = display.draw_ball_detection(vis, detection[0], detection[1])
+
+                # Auto-capture: ball is stationary, grab a sample each frame
+                center, radius = detection
+                focal = extrinsic.compute_focal_length(radius, distance)
+                if constants.MIN_FOCAL_LENGTH_MM <= focal <= constants.MAX_FOCAL_LENGTH_MM:
+                    focal_samples.append(focal)
+                    avg_focal = sum(focal_samples) / len(focal_samples)
+                    logger.info(
+                        "Auto-sample %d/%d: radius=%.1f px, focal=%.4f mm (avg=%.4f)",
+                        len(focal_samples), EXTRINSIC_AUTO_CAPTURE_COUNT,
+                        radius, focal, avg_focal,
+                    )
+                else:
+                    logger.warning("Focal %.2f mm out of range, skipping", focal)
+
+            if focal_samples:
+                vis = display.draw_focal_length_info(
+                    vis, focal_samples[-1], len(focal_samples),
+                    sum(focal_samples) / len(focal_samples),
+                )
+
+            hud = _build_extrinsic_auto_hud(
+                len(focal_samples), EXTRINSIC_AUTO_CAPTURE_COUNT,
+                detection is not None,
+            )
+            display.show_frame(WINDOW, vis, hud)
+
+            # Auto-finalize once we have enough samples
+            if len(focal_samples) >= EXTRINSIC_AUTO_CAPTURE_COUNT:
+                final_focal = sum(focal_samples) / len(focal_samples)
+
+                if not (constants.MIN_FOCAL_LENGTH_MM <= final_focal <= constants.MAX_FOCAL_LENGTH_MM):
+                    logger.error("Average focal %.2f mm out of valid range", final_focal)
+                    state = State.EXTRINSIC_PREVIEW
+                    focal_samples.clear()
+                    continue
+
+                if last_detection is None:
+                    logger.warning("No ball in last frame for angle computation")
+                    state = State.EXTRINSIC_PREVIEW
+                    continue
+
+                center, radius = last_detection
+                h, w = frame.shape[:2]
+
+                try:
+                    final_yaw, final_pitch = extrinsic.compute_camera_angles(
+                        ball_center_px=center,
+                        image_size=(w, h),
+                        focal_length_mm=final_focal,
+                        ball_position_3d=ball_pos,
+                    )
+                    state = State.EXTRINSIC_DONE
+                    logger.info(
+                        "Extrinsic done: focal=%.4f mm, yaw=%.4f, pitch=%.4f",
+                        final_focal, final_yaw, final_pitch,
+                    )
+                except ValueError as e:
+                    logger.error("Angle computation failed: %s", e)
+                    state = State.EXTRINSIC_PREVIEW
+                    focal_samples.clear()
+
         elif state == State.EXTRINSIC_DONE:
             vis = frame.copy()
             if detection is not None:
@@ -220,9 +370,27 @@ def run_extrinsic(
         key = cv2.waitKey(30) & 0xFF
 
         if key == ord("q"):
-            break
+            if state == State.EXTRINSIC_AUTO:
+                # Cancel auto-capture, go back to preview
+                state = State.EXTRINSIC_PREVIEW
+                focal_samples.clear()
+                logger.info("Auto-capture cancelled")
+            else:
+                break
 
-        elif key == ord(" ") and state == State.EXTRINSIC_PREVIEW:
+        elif key == 13 and state == State.EXTRINSIC_PREVIEW:  # ENTER
+            # Start auto-capture mode
+            focal_samples.clear()
+            state = State.EXTRINSIC_AUTO
+            logger.info(
+                "Auto-capture started — collecting %d samples",
+                EXTRINSIC_AUTO_CAPTURE_COUNT,
+            )
+
+        elif key == ord(" ") and state in (
+            State.EXTRINSIC_PREVIEW, State.EXTRINSIC_AUTO,
+        ):
+            # Manual single capture
             if detection is None:
                 logger.warning("No ball detected — place ball at calibration position")
                 continue
@@ -240,40 +408,6 @@ def run_extrinsic(
                 len(focal_samples), radius, focal,
                 sum(focal_samples) / len(focal_samples),
             )
-
-        elif key == 13 and state == State.EXTRINSIC_PREVIEW:  # ENTER
-            if not focal_samples:
-                logger.warning("No focal length samples — press SPACE to capture first")
-                continue
-
-            final_focal = sum(focal_samples) / len(focal_samples)
-
-            if final_focal < constants.MIN_FOCAL_LENGTH_MM or final_focal > constants.MAX_FOCAL_LENGTH_MM:
-                logger.error("Average focal %.2f mm is out of valid range", final_focal)
-                continue
-
-            # Use the last detection for angle computation
-            if last_detection is None:
-                logger.warning("No ball detected in last frame for angle computation")
-                continue
-
-            center, radius = last_detection
-            h, w = frame.shape[:2]
-
-            try:
-                final_yaw, final_pitch = extrinsic.compute_camera_angles(
-                    ball_center_px=center,
-                    image_size=(w, h),
-                    focal_length_mm=final_focal,
-                    ball_position_3d=ball_pos,
-                )
-                state = State.EXTRINSIC_DONE
-                logger.info(
-                    "Extrinsic done: focal=%.4f mm, yaw=%.4f, pitch=%.4f",
-                    final_focal, final_yaw, final_pitch,
-                )
-            except ValueError as e:
-                logger.error("Angle computation failed: %s", e)
 
         elif key == ord("s") and state == State.EXTRINSIC_DONE:
             config_manager.set_focal_length(config, camera_num, final_focal)

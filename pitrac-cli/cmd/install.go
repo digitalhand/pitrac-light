@@ -25,11 +25,11 @@ type installTarget struct {
 var installProfiles = map[string][]string{
 	"base":      {"source-deps", "boost", "java", "msgpack-cxx"},
 	"messaging": {"mq-broker", "activemq-cpp"},
-	"camera":    {"lgpio", "libcamera"},
+	"camera":    {"lgpio", "libcamera", "camera-timeout"},
 	"compute":   {"opencv", "onnx"},
 	"full": {
 		"source-deps", "boost", "java", "msgpack-cxx",
-		"mq-broker", "activemq-cpp", "lgpio", "libcamera",
+		"mq-broker", "activemq-cpp", "lgpio", "libcamera", "camera-timeout",
 		"opencv", "onnx",
 	},
 }
@@ -842,6 +842,65 @@ do
     sudo ln -s "../../${h}" "${TARGET}/${h}"
   fi
 done
+`),
+			},
+		},
+		{
+			id:          "camera-timeout",
+			description: "Configure libcamera pipeline timeout for Pi 5 (pisp)",
+			steps: []commandStep{
+				shellStep("configure camera timeout", `
+# Set camera_timeout_value_ms in the libcamera pisp pipeline config.
+# Without this, the IMX296 global shutter sensor can trigger spurious
+# "Camera frontend has timed out!" errors during startup.
+# Value of 10000000 (10s) matches the recommendation in libcamera_jpeg.cpp:441-443.
+
+TIMEOUT_VALUE=10000000
+
+YAML_CANDIDATES=(
+  "/usr/local/share/libcamera/pipeline/rpi/pisp/rpi_apps.yaml"
+  "/usr/share/libcamera/pipeline/rpi/pisp/rpi_apps.yaml"
+)
+
+YAML_FILE=""
+for f in "${YAML_CANDIDATES[@]}"; do
+  if [ -f "$f" ]; then
+    YAML_FILE="$f"
+    break
+  fi
+done
+
+if [ -z "$YAML_FILE" ]; then
+  echo "No rpi_apps.yaml found at expected Pi 5 (pisp) paths:"
+  printf "  %s\n" "${YAML_CANDIDATES[@]}"
+  echo "Skipping camera timeout configuration."
+  exit 0
+fi
+
+echo "Found pipeline config: $YAML_FILE"
+
+# Check if already configured with our value
+if grep -q "\"camera_timeout_value_ms\": *${TIMEOUT_VALUE}" "$YAML_FILE" 2>/dev/null; then
+  echo "camera_timeout_value_ms already set to ${TIMEOUT_VALUE}. Nothing to do."
+  exit 0
+fi
+
+# Back up the original
+BACKUP="${YAML_FILE}.bak.$(date +%Y%m%d_%H%M%S)"
+sudo cp "$YAML_FILE" "$BACKUP"
+echo "Backed up original to: $BACKUP"
+
+# Write the correct content (the file is small JSON-in-YAML)
+sudo tee "$YAML_FILE" > /dev/null <<EOFYAML
+{
+    "pipeline_handler":
+    {
+        "camera_timeout_value_ms": ${TIMEOUT_VALUE}
+    }
+}
+EOFYAML
+
+echo "Set camera_timeout_value_ms to ${TIMEOUT_VALUE} in $YAML_FILE"
 `),
 			},
 		},

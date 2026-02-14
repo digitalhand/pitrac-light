@@ -450,7 +450,8 @@ func startCamera(camera int) error {
 		return fmt.Errorf("failed to create log dir: %w", err)
 	}
 
-	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	// Truncate log so each run starts clean (old logs are easy to find via timestamps)
+	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
 	if err != nil {
 		return fmt.Errorf("failed to open log file %s: %w", logPath, err)
 	}
@@ -459,6 +460,10 @@ func startCamera(camera int) error {
 	proc.Stdout = logFile
 	proc.Stderr = logFile
 	proc.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+
+	// Print the full command for debugging
+	printStatus(markInfo(), fmt.Sprintf("camera%d", camera),
+		fmt.Sprintf("exec: %s %s", binary, strings.Join(allArgs, " ")))
 
 	if err := proc.Start(); err != nil {
 		logFile.Close()

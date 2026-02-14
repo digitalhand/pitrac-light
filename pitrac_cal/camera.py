@@ -36,7 +36,6 @@ class PiCamera2Source:
     def __init__(
         self,
         camera_num: int = 0,
-        resolution: tuple[int, int] = (constants.RESOLUTION_X, constants.RESOLUTION_Y),
         flip: bool = True,
     ):
         try:
@@ -48,12 +47,19 @@ class PiCamera2Source:
 
         self._flip = flip
         self._cam = Picamera2(camera_num)
-        config = self._cam.create_still_configuration(
-            main={"size": resolution, "format": "BGR888"},
+
+        # Use preview configuration and let picamera2 pick the native sensor
+        # mode.  Requesting only the output pixel format avoids the IMX296
+        # selecting a tiny binned mode when an exact size is forced.
+        config = self._cam.create_preview_configuration(
+            main={"format": "BGR888"},
         )
         self._cam.configure(config)
         self._cam.start()
-        logger.info("PiCamera2 started (camera %d, %dx%d)", camera_num, *resolution)
+
+        # Log the actual resolution the sensor settled on
+        size = self._cam.camera_configuration()["main"]["size"]
+        logger.info("PiCamera2 started (camera %d, %dx%d)", camera_num, size[0], size[1])
 
     def capture(self) -> np.ndarray:
         frame = self._cam.capture_array()

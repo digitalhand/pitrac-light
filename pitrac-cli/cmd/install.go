@@ -680,13 +680,14 @@ rpicam-still --version || true
 						"libavcodec-dev", "libavformat-dev", "libswscale-dev",
 						"libv4l-dev", "v4l-utils", "libxvidcore-dev", "libx264-dev",
 						"libgtk-3-dev", "libtbbmalloc2", "libtbb-dev",
+						"python3-dev", "python3-numpy",
 					},
 				},
 				shellStep("clone and build OpenCV", `
 OPENCV_VERSION="${REQUIRED_OPENCV_VERSION:-4.12.0}"
 OPENCV_DIR="${OPENCV_DIR:-$HOME/opencv-${OPENCV_VERSION}}"
 OPENCV_CONTRIB_DIR="${OPENCV_CONTRIB_DIR:-$HOME/opencv_contrib-${OPENCV_VERSION}}"
-ENABLE_PYTHON="${OPENCV_ENABLE_PYTHON:-0}"
+ENABLE_PYTHON="${OPENCV_ENABLE_PYTHON:-1}"
 FORCE="${FORCE:-0}"
 DEFAULT_JOBS=4
 if command -v nproc >/dev/null 2>&1; then

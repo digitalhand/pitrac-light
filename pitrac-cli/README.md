@@ -398,7 +398,7 @@ BUILD_JOBS=4 pitrac-cli install onnx --yes
 - `REQUIRED_OPENCV_VERSION` (default `4.11.0`)
 - `OPENCV_DIR` (default `$HOME/opencv-<version>`)
 - `OPENCV_CONTRIB_DIR` (default `$HOME/opencv_contrib-<version>`)
-- `OPENCV_ENABLE_PYTHON` (`1` enables Python bindings)
+- `OPENCV_ENABLE_PYTHON` (default `1` — builds Python `cv2` bindings; set `0` to disable)
 
 ### `onnx`
 - `ORT_VERSION` (default `1.17.3`)

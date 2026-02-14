@@ -53,28 +53,18 @@ Previously, intrinsic parameters were computed manually and hardcoded, while ext
 
 ## Installation
 
-From the PiTrac repository root on the Raspberry Pi:
+All dependencies are installed through `apt`. No pip or virtual environments needed.
 
 ```bash
-pip install -r pitrac_cal/requirements.txt
+sudo apt install -y python3-numpy python3-opencv python3-picamera2
 ```
 
-If you built OpenCV from source during PiTrac installation (via `pitrac-cli install opencv`), the Python bindings are already available system-wide. Verify with:
+If you already ran `pitrac-cli install opencv` (or `full`), the source-built OpenCV includes Python bindings and `python3-opencv` can be skipped — but installing it anyway is harmless.
+
+Verify:
 
 ```bash
-python3 -c "import cv2; print(cv2.__version__)"
-```
-
-If OpenCV was built without Python bindings, rebuild with `OPENCV_ENABLE_PYTHON=1`:
-
-```bash
-OPENCV_ENABLE_PYTHON=1 pitrac-cli install opencv --yes
-```
-
-Verify picamera2 is available (it ships with Raspberry Pi OS):
-
-```bash
-python3 -c "from picamera2 import Picamera2; print('picamera2 OK')"
+python3 -c "import numpy, cv2; from picamera2 import Picamera2; print('all OK')"
 ```
 
 ## Usage
@@ -285,7 +275,13 @@ The tool cycles through image files in the directory, simulating a camera feed. 
 From the repository root:
 
 ```bash
+# On Pi OS — install pytest via apt
+sudo apt install -y python3-pytest
+
+# On a dev machine — install via pip (or pip inside a venv)
 pip install pytest numpy opencv-python-headless
+
+# Run the tests
 python3 -m pytest pitrac_cal/tests/ -v
 ```
 
@@ -308,6 +304,26 @@ Tests cover:
 | `constants.py` | Hardware constants (sensor dimensions, ball radius) |
 
 ## Troubleshooting
+
+### `error: externally-managed-environment` or `pip install` fails
+
+Do not use `pip`. Raspberry Pi OS manages Python system-wide. Install everything through `apt`:
+
+```bash
+sudo apt install -y python3-numpy python3-opencv python3-picamera2
+```
+
+### `ModuleNotFoundError: No module named 'cv2'`
+
+```bash
+sudo apt install -y python3-opencv
+```
+
+If you want the source-built version instead, rebuild OpenCV (new builds include Python bindings by default):
+
+```bash
+FORCE=1 pitrac-cli install opencv --yes
+```
 
 ### `ModuleNotFoundError: No module named 'pitrac_cal'`
 

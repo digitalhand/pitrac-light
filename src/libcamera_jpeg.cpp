@@ -244,7 +244,7 @@ bool ball_flight_camera_event_loop(LibcameraJpegApp& app, cv::Mat& returnImg)
 
 			// THE FOLLOWING CREATES A SEGMENTATION FAULT: returnImg = cv::Mat(info.height, info.width, CV_8UC3, image, info.stride);
 			// So, that's why the frame is being cloned.
-			GS_LOG_TRACE_MSG(trace, "Returning (Final, Strobed) Viewfinder captured image");
+			GS_LOG_MSG(info, "Camera 2: Ball image captured (" + std::to_string(info.width) + "x" + std::to_string(info.height) + ").");
 			// golf_sim::LoggingTools::LogImage("", returnImg, std::vector < cv::Point >{}, true, "Cam2_Strobed_Image.png");
 
 			return_status = true;

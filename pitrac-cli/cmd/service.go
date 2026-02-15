@@ -392,7 +392,7 @@ func buildCameraServiceArgs(camera, simPort int) ([]string, error) {
 			"--system_mode", "camera1",
 			"--search_center_x", "850",
 			"--search_center_y", "500",
-			"--logging_level=trace",
+			"--logging_level=info",
 			"--artifact_save_level=final_results_only",
 			"--camera_gain", "1.1",
 		}
@@ -400,7 +400,7 @@ func buildCameraServiceArgs(camera, simPort int) ([]string, error) {
 		modeArgs = []string{
 			"--system_mode", "camera2",
 			"--camera_gain", "3.0",
-			"--logging_level=trace",
+			"--logging_level=info",
 			"--artifact_save_level=final_results_only",
 		}
 	default:

@@ -877,6 +877,10 @@ fi
 # Without this, the IMX296 global shutter sensor can trigger spurious
 # "Camera frontend has timed out!" errors during startup.
 # Value of 10000000 (10s) matches the recommendation in libcamera_jpeg.cpp:441-443.
+#
+# IMPORTANT: This script modifies the existing rpi_apps.yaml in place.
+# It must NOT overwrite the file — libcamera requires other keys like
+# "version" and "target" that would be lost.
 
 TIMEOUT_VALUE=10000000
 
@@ -902,28 +906,36 @@ fi
 
 echo "Found pipeline config: $YAML_FILE"
 
-# Check if already configured with our value
-if grep -q "\"camera_timeout_value_ms\": *${TIMEOUT_VALUE}" "$YAML_FILE" 2>/dev/null; then
-  echo "camera_timeout_value_ms already set to ${TIMEOUT_VALUE}. Nothing to do."
-  exit 0
+# Check if already configured with a timeout value
+if grep -q '"camera_timeout_value_ms"' "$YAML_FILE" 2>/dev/null; then
+  CURRENT="$(grep '"camera_timeout_value_ms"' "$YAML_FILE" | grep -o '[0-9]\+')"
+  if [ "$CURRENT" = "$TIMEOUT_VALUE" ]; then
+    echo "camera_timeout_value_ms already set to ${TIMEOUT_VALUE}. Nothing to do."
+    exit 0
+  fi
+  # Update existing value in place
+  BACKUP="${YAML_FILE}.bak.$(date +%Y%m%d_%H%M%S)"
+  sudo cp "$YAML_FILE" "$BACKUP"
+  echo "Backed up original to: $BACKUP"
+  sudo sed -i "s/\"camera_timeout_value_ms\":[ ]*[0-9]*/\"camera_timeout_value_ms\": ${TIMEOUT_VALUE}/" "$YAML_FILE"
+  echo "Updated camera_timeout_value_ms from ${CURRENT} to ${TIMEOUT_VALUE} in $YAML_FILE"
+else
+  # Timeout key not present — check if there's a commented-out version to uncomment
+  BACKUP="${YAML_FILE}.bak.$(date +%Y%m%d_%H%M%S)"
+  sudo cp "$YAML_FILE" "$BACKUP"
+  echo "Backed up original to: $BACKUP"
+  if grep -q '#.*"camera_timeout_value_ms"' "$YAML_FILE" 2>/dev/null; then
+    # Uncomment and set the value
+    sudo sed -i "s|#[ ]*\"camera_timeout_value_ms\":.*|\"camera_timeout_value_ms\": ${TIMEOUT_VALUE},|" "$YAML_FILE"
+    echo "Uncommented and set camera_timeout_value_ms to ${TIMEOUT_VALUE} in $YAML_FILE"
+  else
+    # Insert timeout line after "pipeline_handler" opening brace
+    sudo sed -i "/\"pipeline_handler\"/,/{/ { /^[[:space:]]*{/ a\
+                \"camera_timeout_value_ms\": ${TIMEOUT_VALUE},
+    }" "$YAML_FILE"
+    echo "Added camera_timeout_value_ms: ${TIMEOUT_VALUE} to $YAML_FILE"
+  fi
 fi
-
-# Back up the original
-BACKUP="${YAML_FILE}.bak.$(date +%Y%m%d_%H%M%S)"
-sudo cp "$YAML_FILE" "$BACKUP"
-echo "Backed up original to: $BACKUP"
-
-# Write the correct content (the file is small JSON-in-YAML)
-sudo tee "$YAML_FILE" > /dev/null <<EOFYAML
-{
-    "pipeline_handler":
-    {
-        "camera_timeout_value_ms": ${TIMEOUT_VALUE}
-    }
-}
-EOFYAML
-
-echo "Set camera_timeout_value_ms to ${TIMEOUT_VALUE} in $YAML_FILE"
 `),
 			},
 		},

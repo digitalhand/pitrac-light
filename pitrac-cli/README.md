@@ -198,7 +198,7 @@ Shared flags:
 - `--camera <1|2>` (default `1`) — selects camera1 or camera2 mode variants
 - `--dry-run` — prints the full `pitrac_lm` command without executing
 
-Each subcommand resolves the binary at `$PITRAC_ROOT/src/build/pitrac_lm`, builds common args from env (same logic as `config args`), and appends mode-specific flags.
+Each subcommand resolves the binary at `$PITRAC_ROOT/src/build/pitrac_lm`, builds common args from env (same logic as `config args`), and appends mode-specific flags. `pitrac-cli` always adds `--run_single_pi` to `pitrac_lm` launch arguments.
 
 | Subcommand | pitrac_lm args |
 | --- | --- |
@@ -326,6 +326,8 @@ pitrac-cli service lm start [--camera <1|2>]   # start camera process(es)
 pitrac-cli service lm stop                      # stop camera processes
 pitrac-cli service lm status                    # check camera process status
 ```
+
+`service lm start` and `service start` always launch `pitrac_lm` with `--run_single_pi`.
 
 | Flag | Default | Description |
 | --- | --- | --- |

@@ -28,6 +28,9 @@ func TestBuildCommonArgs_AllPresent(t *testing.T) {
 	if !strings.Contains(joined, "--msg_broker_address") {
 		t.Error("expected --msg_broker_address in output")
 	}
+	if !strings.Contains(joined, "--run_single_pi") {
+		t.Error("expected --run_single_pi in output")
+	}
 }
 
 func TestBuildCommonArgs_MissingRequired(t *testing.T) {

@@ -167,6 +167,7 @@ func buildCommonArgs(values map[string]string) ([]string, error) {
 
 	cmdArgs := []string{
 		"--config_file", configFile,
+		"--run_single_pi",
 		"--msg_broker_address", values["PITRAC_MSG_BROKER_FULL_ADDRESS"],
 		"--web_server_share_dir", values["PITRAC_WEBSERVER_SHARE_DIR"],
 		"--base_image_logging_dir", values["PITRAC_BASE_IMAGE_LOGGING_DIR"],

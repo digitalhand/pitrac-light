@@ -26,7 +26,7 @@
 *.mod
 *.smod
 !pitrac-cli/go.mod
-
+pitrac-cli/pitrac-cli
 # Compiled Static libraries
 *.lai
 *.la

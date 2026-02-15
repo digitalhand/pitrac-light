@@ -25,11 +25,11 @@ type installTarget struct {
 var installProfiles = map[string][]string{
 	"base":      {"source-deps", "boost", "java", "msgpack-cxx"},
 	"messaging": {"mq-broker", "activemq-cpp"},
-	"camera":    {"lgpio", "libcamera", "camera-timeout"},
+	"camera":    {"lgpio", "libcamera", "camera-timeout", "boot-config"},
 	"compute":   {"opencv", "onnx"},
 	"full": {
 		"source-deps", "boost", "java", "msgpack-cxx",
-		"mq-broker", "activemq-cpp", "lgpio", "libcamera", "camera-timeout",
+		"mq-broker", "activemq-cpp", "lgpio", "libcamera", "camera-timeout", "boot-config",
 		"opencv", "onnx",
 	},
 }
@@ -842,6 +842,29 @@ do
     sudo ln -s "../../${h}" "${TARGET}/${h}"
   fi
 done
+`),
+			},
+		},
+		{
+			id:          "boot-config",
+			description: "Ensure camera_auto_detect=1 in Pi 5 boot config",
+			steps: []commandStep{
+				shellStep("configure boot config for camera", `
+CONFIG_FILE="/boot/firmware/config.txt"
+if [ ! -f "$CONFIG_FILE" ]; then
+  echo "Boot config not found at $CONFIG_FILE (not a Pi 5?). Skipping."
+  exit 0
+fi
+
+if grep -q '^camera_auto_detect=1' "$CONFIG_FILE"; then
+  echo "camera_auto_detect=1 already set"
+elif grep -q '^camera_auto_detect=' "$CONFIG_FILE"; then
+  sudo sed -i 's/^camera_auto_detect=.*/camera_auto_detect=1/' "$CONFIG_FILE"
+  echo "Updated camera_auto_detect to 1"
+else
+  echo 'camera_auto_detect=1' | sudo tee -a "$CONFIG_FILE" >/dev/null
+  echo "Added camera_auto_detect=1"
+fi
 `),
 			},
 		},

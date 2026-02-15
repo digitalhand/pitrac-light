@@ -385,7 +385,7 @@ func buildEnvFile(values map[string]string) string {
 	writeExport("PITRAC_BASE_IMAGE_LOGGING_DIR")
 	b.WriteString("\n")
 	b.WriteString("# Optional overrides\n")
-	b.WriteString("# export PITRAC_GSPRO_HOST_ADDRESS=\"10.0.0.51\"\n")
+	b.WriteString("# export PITRAC_SIM_HOST_ADDRESS=\"10.0.0.51\"\n")
 	writeExport("PITRAC_WEB_SERVER_URL")
 	b.WriteString("\n")
 

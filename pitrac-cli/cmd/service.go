@@ -33,6 +33,7 @@ func init() {
 	serviceLMCmd.AddCommand(serviceLMStatusCmd)
 
 	serviceLMStartCmd.Flags().Int("camera", 0, "start only camera 1 or 2 (default: both)")
+	serviceLMStartCmd.Flags().Int("sim-port", 0, "simulator connect port (overrides config default)")
 }
 
 // --- parent commands ---
@@ -377,7 +378,7 @@ sudo systemctl enable activemq
 
 // ─── Camera implementations ─────────────────────────────────────────
 
-func buildCameraServiceArgs(camera int) ([]string, error) {
+func buildCameraServiceArgs(camera, simPort int) ([]string, error) {
 	values := envMapFromProcess()
 	commonArgs, err := buildCommonArgs(values)
 	if err != nil {
@@ -406,27 +407,43 @@ func buildCameraServiceArgs(camera int) ([]string, error) {
 		return nil, fmt.Errorf("invalid camera: %d (must be 1 or 2)", camera)
 	}
 
+	if simPort > 0 {
+		modeArgs = append(modeArgs, "--gspro_port", strconv.Itoa(simPort))
+	}
+
 	return append(commonArgs, modeArgs...), nil
 }
 
 func resolvePitracBinary() (string, error) {
+	// 1. Try $PITRAC_ROOT/src/build/pitrac_lm (dev builds)
 	pitracRoot := strings.TrimSpace(os.Getenv("PITRAC_ROOT"))
 	if pitracRoot == "" {
 		detected, err := detectRepoRoot()
-		if err != nil {
-			return "", fmt.Errorf("PITRAC_ROOT not set and could not detect repo root: %w", err)
+		if err == nil {
+			pitracRoot = detected
 		}
-		pitracRoot = detected
+	}
+	if pitracRoot != "" {
+		binary := filepath.Join(pitracRoot, "src", "build", "pitrac_lm")
+		if fileExists(binary) {
+			return binary, nil
+		}
 	}
 
-	binary := filepath.Join(pitracRoot, "src", "build", "pitrac_lm")
-	if !fileExists(binary) {
-		return "", fmt.Errorf("pitrac_lm binary not found: %s\n  run: pitrac-cli build", binary)
+	// 2. Try installed path /usr/lib/pitrac/pitrac_lm
+	installed := "/usr/lib/pitrac/pitrac_lm"
+	if fileExists(installed) {
+		return installed, nil
 	}
-	return binary, nil
+
+	hint := "run: pitrac-cli build --install"
+	if pitracRoot != "" {
+		return "", fmt.Errorf("pitrac_lm not found at %s/src/build/ or /usr/lib/pitrac/\n  %s", pitracRoot, hint)
+	}
+	return "", fmt.Errorf("pitrac_lm not found at /usr/lib/pitrac/\n  %s", hint)
 }
 
-func startCamera(camera int) error {
+func startCamera(camera, simPort int) error {
 	pidPath := cameraPIDPath(camera)
 	existing := checkStaleAndClean(pidPath)
 	if existing != 0 {
@@ -440,7 +457,7 @@ func startCamera(camera int) error {
 		return err
 	}
 
-	allArgs, err := buildCameraServiceArgs(camera)
+	allArgs, err := buildCameraServiceArgs(camera, simPort)
 	if err != nil {
 		return err
 	}
@@ -542,22 +559,23 @@ func printCameraStatus(camera int) {
 
 func runLMStart(cmd *cobra.Command, args []string) error {
 	camera, _ := cmd.Flags().GetInt("camera")
+	simPort, _ := cmd.Flags().GetInt("sim-port")
 
 	printHeader("Launch Monitor Start")
 
 	switch camera {
 	case 1:
-		return startCamera(1)
+		return startCamera(1, simPort)
 	case 2:
-		return startCamera(2)
+		return startCamera(2, simPort)
 	case 0:
 		// Start both: camera 1 first, then camera 2
-		if err := startCamera(1); err != nil {
+		if err := startCamera(1, simPort); err != nil {
 			return err
 		}
 		printStatus(markInfo(), "startup", "waiting 2s before starting camera 2...")
 		time.Sleep(2 * time.Second)
-		return startCamera(2)
+		return startCamera(2, simPort)
 	default:
 		return fmt.Errorf("--camera must be 1 or 2, got %d", camera)
 	}
@@ -610,14 +628,14 @@ func runServiceStart(cmd *cobra.Command, args []string) error {
 
 	// 2. Start camera 1
 	fmt.Println()
-	if err := startCamera(1); err != nil {
+	if err := startCamera(1, 0); err != nil {
 		return err
 	}
 
 	// 3. Wait then start camera 2
 	printStatus(markInfo(), "startup", "waiting 2s before starting camera 2...")
 	time.Sleep(2 * time.Second)
-	if err := startCamera(2); err != nil {
+	if err := startCamera(2, 0); err != nil {
 		return err
 	}
 

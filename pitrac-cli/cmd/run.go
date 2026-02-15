@@ -180,22 +180,9 @@ func buildModeArgs(mode string, camera int) []string {
 }
 
 func execPitracLM(modeArgs []string, dryRun bool) error {
-	pitracRoot := strings.TrimSpace(os.Getenv("PITRAC_ROOT"))
-	rootSource := "PITRAC_ROOT env var"
-	if pitracRoot == "" {
-		detected, err := detectRepoRoot()
-		if err != nil {
-			return fmt.Errorf("PITRAC_ROOT not set and could not detect repo root: %w\nHint: Run from repo directory or set PITRAC_ROOT=/path/to/pitrac-light", err)
-		}
-		pitracRoot = detected
-		rootSource = "auto-detected"
-	}
-
-	binary := filepath.Join(pitracRoot, "src", "build", "pitrac_lm")
-
-	// Verify the binary exists
-	if _, err := os.Stat(binary); err != nil {
-		return fmt.Errorf("pitrac_lm binary not found: %s\nPITRAC_ROOT (%s): %s\nHint: Run 'pitrac-cli build' first or ensure PITRAC_ROOT is correct", binary, rootSource, pitracRoot)
+	binary, err := resolvePitracBinary()
+	if err != nil {
+		return err
 	}
 
 	values := envMapFromProcess()

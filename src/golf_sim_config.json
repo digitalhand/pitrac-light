@@ -476,10 +476,9 @@
             "kLaunchMonitorIdString": "PiTrac LM 0.1",
             "kSkipSpinCalculation": "0",
             "GSPro": {
-                "kGSProComment": "USE CMD LINE OPTION - Example:  --gspro_host_address 10.0.0.47",
+                "kGSProComment": "USE CMD LINE OPTION or PITRAC_SIM_HOST_ADDRESS env var",
                 "kGSProConnectAddress": "",
-                "ALTkGSProConnectPort": "49152",
-                "kGSProConnectPort": "0921"
+                "kGSProConnectPort": "49152"
             }
         },
         "club_data": {

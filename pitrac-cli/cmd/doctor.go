@@ -128,6 +128,24 @@ func runDoctor() error {
 		results = append(results, brokerCheck)
 	}
 
+	// Boot config check (Pi 5)
+	bootConfig := "/boot/firmware/config.txt"
+	if data, err := os.ReadFile(bootConfig); err == nil {
+		content := string(data)
+		cameraAutoDetect := strings.Contains(content, "camera_auto_detect=1")
+		detail := "enabled"
+		if !cameraAutoDetect {
+			detail = "not set in " + bootConfig
+		}
+		results = append(results, checkResult{
+			name:     "boot:camera_auto_detect",
+			required: true,
+			ok:       cameraAutoDetect,
+			detail:   detail,
+		})
+	}
+	// If the file doesn't exist we're not on a Pi — skip silently.
+
 	if root := strings.TrimSpace(os.Getenv("PITRAC_ROOT")); root != "" {
 		rootCheck := checkResult{
 			name:     "path:PITRAC_ROOT/src",

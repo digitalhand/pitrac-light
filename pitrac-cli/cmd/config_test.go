@@ -42,7 +42,30 @@ func TestBuildCommonArgs_MissingRequired(t *testing.T) {
 	}
 }
 
-func TestBuildCommonArgs_OptionalGSPro(t *testing.T) {
+func TestBuildCommonArgs_SimHostAddress(t *testing.T) {
+	values := map[string]string{
+		"PITRAC_ROOT":                    "/home/user/PiTrac",
+		"PITRAC_MSG_BROKER_FULL_ADDRESS": "tcp://127.0.0.1:61616",
+		"PITRAC_WEBSERVER_SHARE_DIR":     "/home/user/shares/",
+		"PITRAC_BASE_IMAGE_LOGGING_DIR":  "/home/user/logs",
+		"PITRAC_SIM_HOST_ADDRESS":        "10.0.0.99",
+	}
+
+	args, err := buildCommonArgs(values)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	joined := strings.Join(args, " ")
+	if !strings.Contains(joined, "--gspro_host_address") {
+		t.Error("expected --gspro_host_address when PITRAC_SIM_HOST_ADDRESS is set")
+	}
+	if !strings.Contains(joined, "10.0.0.99") {
+		t.Error("expected sim address value in output")
+	}
+}
+
+func TestBuildCommonArgs_DeprecatedGSProFallback(t *testing.T) {
 	values := map[string]string{
 		"PITRAC_ROOT":                    "/home/user/PiTrac",
 		"PITRAC_MSG_BROKER_FULL_ADDRESS": "tcp://127.0.0.1:61616",
@@ -58,14 +81,38 @@ func TestBuildCommonArgs_OptionalGSPro(t *testing.T) {
 
 	joined := strings.Join(args, " ")
 	if !strings.Contains(joined, "--gspro_host_address") {
-		t.Error("expected --gspro_host_address when GSPro env var is set")
+		t.Error("expected --gspro_host_address when deprecated PITRAC_GSPRO_HOST_ADDRESS is set")
 	}
 	if !strings.Contains(joined, "10.0.0.51") {
 		t.Error("expected GSPro address value in output")
 	}
 }
 
-func TestBuildCommonArgs_NoGSPro(t *testing.T) {
+func TestBuildCommonArgs_SimHostOverridesGSPro(t *testing.T) {
+	values := map[string]string{
+		"PITRAC_ROOT":                    "/home/user/PiTrac",
+		"PITRAC_MSG_BROKER_FULL_ADDRESS": "tcp://127.0.0.1:61616",
+		"PITRAC_WEBSERVER_SHARE_DIR":     "/home/user/shares/",
+		"PITRAC_BASE_IMAGE_LOGGING_DIR":  "/home/user/logs",
+		"PITRAC_SIM_HOST_ADDRESS":        "10.0.0.99",
+		"PITRAC_GSPRO_HOST_ADDRESS":      "10.0.0.51",
+	}
+
+	args, err := buildCommonArgs(values)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	joined := strings.Join(args, " ")
+	if !strings.Contains(joined, "10.0.0.99") {
+		t.Error("expected PITRAC_SIM_HOST_ADDRESS to take precedence")
+	}
+	if strings.Contains(joined, "10.0.0.51") {
+		t.Error("did not expect deprecated PITRAC_GSPRO_HOST_ADDRESS when PITRAC_SIM_HOST_ADDRESS is set")
+	}
+}
+
+func TestBuildCommonArgs_NoSimAddress(t *testing.T) {
 	values := map[string]string{
 		"PITRAC_ROOT":                    "/home/user/PiTrac",
 		"PITRAC_MSG_BROKER_FULL_ADDRESS": "tcp://127.0.0.1:61616",
@@ -80,6 +127,6 @@ func TestBuildCommonArgs_NoGSPro(t *testing.T) {
 
 	joined := strings.Join(args, " ")
 	if strings.Contains(joined, "--gspro_host_address") {
-		t.Error("did not expect --gspro_host_address when GSPro env var is not set")
+		t.Error("did not expect --gspro_host_address when no sim address env var is set")
 	}
 }

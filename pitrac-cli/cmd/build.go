@@ -18,6 +18,7 @@ func init() {
 	buildCmd.Flags().Int("jobs", 4, "number of parallel build jobs")
 	buildCmd.Flags().String("type", "release", "build type (release, debug, debugoptimized)")
 	buildCmd.Flags().Bool("test", false, "run meson test after build")
+	buildCmd.Flags().Bool("install", false, "copy binary to /usr/lib/pitrac/ after build")
 	buildCmd.Flags().Bool("dry-run", false, "print commands without executing")
 }
 
@@ -51,6 +52,7 @@ func runBuild(cmd *cobra.Command, args []string) error {
 	jobs, _ := cmd.Flags().GetInt("jobs")
 	buildType, _ := cmd.Flags().GetString("type")
 	runTest, _ := cmd.Flags().GetBool("test")
+	installBinary, _ := cmd.Flags().GetBool("install")
 	dryRun, _ := cmd.Flags().GetBool("dry-run")
 
 	printHeader("Build PiTrac")
@@ -92,6 +94,9 @@ func runBuild(cmd *cobra.Command, args []string) error {
 		totalSteps = 3
 	}
 	if runTest {
+		totalSteps++
+	}
+	if installBinary {
 		totalSteps++
 	}
 
@@ -151,6 +156,38 @@ func runBuild(cmd *cobra.Command, args []string) error {
 			c.Stderr = os.Stderr
 			if err := c.Run(); err != nil {
 				return fmt.Errorf("meson test failed: %w", err)
+			}
+			printDuration(time.Since(start))
+		}
+	}
+
+	// optional install
+	if installBinary {
+		stepNum++
+		binaryPath := filepath.Join(buildDir, "pitrac_lm")
+		installDir := "/usr/lib/pitrac"
+		installPath := filepath.Join(installDir, "pitrac_lm")
+
+		printStep(stepNum, totalSteps, "install binary to "+installDir)
+		installCmds := [][]string{
+			{"sudo", "mkdir", "-p", installDir},
+			{"sudo", "cp", binaryPath, installPath},
+		}
+		for _, ic := range installCmds {
+			printCommand(ic)
+		}
+
+		if dryRun {
+			fmt.Println("      [DRY] skipped")
+		} else {
+			start := time.Now()
+			for _, ic := range installCmds {
+				c := exec.Command(ic[0], ic[1:]...)
+				c.Stdout = os.Stdout
+				c.Stderr = os.Stderr
+				if err := c.Run(); err != nil {
+					return fmt.Errorf("install failed (%s): %w", formatCommand(ic), err)
+				}
 			}
 			printDuration(time.Since(start))
 		}

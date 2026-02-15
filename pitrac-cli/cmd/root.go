@@ -63,6 +63,7 @@ func printStyledHelp() {
 			commands: []helpEntry{
 				{"config init", "Copy config to ~/.pitrac/config/"},
 				{"config args", "Output runtime arguments from env variables"},
+				{"config detection", "Show/set ball detection method"},
 			},
 		},
 		{

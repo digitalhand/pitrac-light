@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -15,6 +16,7 @@ func init() {
 	rootCmd.AddCommand(configCmd)
 	configCmd.AddCommand(configArgsCmd)
 	configCmd.AddCommand(configInitCmd)
+	configCmd.AddCommand(configDetectionCmd)
 }
 
 var configCmd = &cobra.Command{
@@ -37,6 +39,8 @@ var configInitCmd = &cobra.Command{
 func init() {
 	configArgsCmd.Flags().String("env-file", "", "path to env file")
 	configInitCmd.Flags().Bool("force", false, "overwrite config if it already exists")
+	configDetectionCmd.Flags().String("method", "", "flight detection method: legacy, experimental, experimental_sahi")
+	configDetectionCmd.Flags().String("placement-method", "", "placed ball detection method: legacy, experimental")
 }
 
 func runConfigArgs(cmd *cobra.Command, args []string) error {
@@ -168,9 +172,147 @@ func buildCommonArgs(values map[string]string) ([]string, error) {
 		"--base_image_logging_dir", values["PITRAC_BASE_IMAGE_LOGGING_DIR"],
 	}
 
-	if gspro := strings.TrimSpace(values["PITRAC_GSPRO_HOST_ADDRESS"]); gspro != "" {
-		cmdArgs = append(cmdArgs, "--gspro_host_address", gspro)
+	// PITRAC_SIM_HOST_ADDRESS is the preferred env var; fall back to
+	// the deprecated PITRAC_GSPRO_HOST_ADDRESS for backward compatibility.
+	sim := strings.TrimSpace(values["PITRAC_SIM_HOST_ADDRESS"])
+	if sim == "" {
+		sim = strings.TrimSpace(values["PITRAC_GSPRO_HOST_ADDRESS"])
+	}
+	if sim != "" {
+		cmdArgs = append(cmdArgs, "--gspro_host_address", sim)
 	}
 
 	return cmdArgs, nil
+}
+
+// ─── config detection ────────────────────────────────────────────────
+
+var configDetectionCmd = &cobra.Command{
+	Use:   "detection",
+	Short: "Show or set ball detection method in golf_sim_config.json",
+	Long: `Show or set ball detection methods in golf_sim_config.json.
+
+Without flags, prints the current detection methods.
+
+Flags:
+  --method           Flight detection: legacy, experimental, experimental_sahi
+  --placement-method Placed ball detection: legacy, experimental`,
+	RunE: runConfigDetection,
+}
+
+var validFlightMethods = []string{"legacy", "experimental", "experimental_sahi"}
+var validPlacementMethods = []string{"legacy", "experimental"}
+
+func runConfigDetection(cmd *cobra.Command, args []string) error {
+	pitracRoot := strings.TrimSpace(os.Getenv("PITRAC_ROOT"))
+	if pitracRoot == "" {
+		detected, err := detectRepoRoot()
+		if err != nil {
+			return fmt.Errorf("PITRAC_ROOT not set and could not detect repo root: %w", err)
+		}
+		pitracRoot = detected
+	}
+
+	configPath := resolveConfigFile(pitracRoot)
+
+	method, _ := cmd.Flags().GetString("method")
+	placementMethod, _ := cmd.Flags().GetString("placement-method")
+
+	// Validate flags before touching the file.
+	if method != "" && !stringInSlice(method, validFlightMethods) {
+		return fmt.Errorf("invalid --method %q; allowed: %s", method, strings.Join(validFlightMethods, ", "))
+	}
+	if placementMethod != "" && !stringInSlice(placementMethod, validPlacementMethods) {
+		return fmt.Errorf("invalid --placement-method %q; allowed: %s", placementMethod, strings.Join(validPlacementMethods, ", "))
+	}
+
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		return fmt.Errorf("failed to read config: %w", err)
+	}
+
+	var config map[string]interface{}
+	if err := json.Unmarshal(data, &config); err != nil {
+		return fmt.Errorf("failed to parse config JSON: %w", err)
+	}
+
+	ballID, err := configNestedMap(config, "gs_config", "ball_identification")
+	if err != nil {
+		return fmt.Errorf("config structure error: %w", err)
+	}
+
+	// If no flags, show current values and return.
+	if method == "" && placementMethod == "" {
+		cur := stringVal(ballID, "kDetectionMethod", "legacy")
+		curPlacement := stringVal(ballID, "kBallPlacementDetectionMethod", "legacy")
+		printStatus(markInfo(), "kDetectionMethod", cur)
+		printStatus(markInfo(), "kBallPlacementDetectionMethod", curPlacement)
+		fmt.Println()
+		fmt.Printf("flight methods:    %s\n", strings.Join(validFlightMethods, ", "))
+		fmt.Printf("placement methods: %s\n", strings.Join(validPlacementMethods, ", "))
+		return nil
+	}
+
+	// Apply changes.
+	if method != "" {
+		ballID["kDetectionMethod"] = method
+	}
+	if placementMethod != "" {
+		ballID["kBallPlacementDetectionMethod"] = placementMethod
+	}
+
+	out, err := json.MarshalIndent(config, "", "    ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal config: %w", err)
+	}
+	// json.MarshalIndent doesn't add a trailing newline.
+	out = append(out, '\n')
+
+	if err := os.WriteFile(configPath, out, 0o644); err != nil {
+		return fmt.Errorf("failed to write config: %w", err)
+	}
+
+	if method != "" {
+		printStatus(markSuccess(), "kDetectionMethod", method)
+	}
+	if placementMethod != "" {
+		printStatus(markSuccess(), "kBallPlacementDetectionMethod", placementMethod)
+	}
+	fmt.Printf("updated %s\n", configPath)
+	return nil
+}
+
+// configNestedMap traverses nested JSON maps and returns the innermost one.
+func configNestedMap(root map[string]interface{}, keys ...string) (map[string]interface{}, error) {
+	current := root
+	for _, k := range keys {
+		val, ok := current[k]
+		if !ok {
+			return nil, fmt.Errorf("key %q not found", k)
+		}
+		next, ok := val.(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("key %q is not an object", k)
+		}
+		current = next
+	}
+	return current, nil
+}
+
+func stringVal(m map[string]interface{}, key, fallback string) string {
+	if v, ok := m[key]; ok {
+		if s, ok := v.(string); ok {
+			return s
+		}
+	}
+	return fallback
+}
+
+func stringInSlice(s string, list []string) bool {
+	for _, v := range list {
+		if v == s {
+			return true
+		}
+	}
+	return false
 }

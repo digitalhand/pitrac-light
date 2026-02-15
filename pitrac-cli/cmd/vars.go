@@ -10,7 +10,8 @@ var requiredEnvVars = []string{
 }
 
 var optionalEnvVars = []string{
-	"PITRAC_GSPRO_HOST_ADDRESS",
+	"PITRAC_SIM_HOST_ADDRESS",
+	"PITRAC_GSPRO_HOST_ADDRESS", // deprecated alias for PITRAC_SIM_HOST_ADDRESS
 	"PITRAC_WEB_SERVER_URL",
 }
 

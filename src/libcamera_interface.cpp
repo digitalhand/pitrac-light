@@ -685,7 +685,8 @@ bool SetImx296TriggerModeForCamera(const GsCameraNumber camera_number, bool use_
     const CameraHardware::CameraModel camera_model =
         (camera_number == GsCameraNumber::kGsCamera1) ? GolfSimCamera::kSystemSlot1CameraType : GolfSimCamera::kSystemSlot2CameraType;
 
-    if (camera_model != CameraHardware::CameraModel::InnoMakerIMX296GS_Mono) {
+    if (camera_model != CameraHardware::CameraModel::InnoMakerIMX296GS_Mono &&
+        camera_model != CameraHardware::CameraModel::PiGS) {
         return true;
     }
 

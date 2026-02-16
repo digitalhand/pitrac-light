@@ -388,7 +388,10 @@ namespace golf_sim {
 		}
 
 
-		// Open shutter - 
+		GS_LOG_MSG(info, "SendCameraStrobeTriggerAndShutter: activeHigh=" + std::to_string(kUsingActiveHighTriggerCamera) +
+				   ", spiHandle=" + std::to_string(spiHandle_) + ", bytes=" + std::to_string(result_length));
+
+		// Open shutter -
 		// Note - the old V1 Connector Board  hardware will invert the signal to the XTR camera trigger
 
 		// Current cameras are active low, so the kOFF setting will open the
@@ -401,6 +404,7 @@ namespace golf_sim {
 		}
 
 		int bytes_sent = lgSpiWrite(spiHandle_, buf, result_length);
+		GS_LOG_MSG(info, "SendCameraStrobeTriggerAndShutter: lgSpiWrite sent " + std::to_string(bytes_sent) + " bytes.");
 		bool shutter_failure = false;
 
 		if (bytes_sent != (int)result_length) {

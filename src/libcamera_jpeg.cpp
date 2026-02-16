@@ -34,6 +34,7 @@
 #include "gs_camera.h"
 #include "libcamera_interface.h"
 #include "utils/logging_tools.h"
+#include <libcamera/logging.h>
 #include "ball_watcher.h"
 #include "pulse_strobe.h"
 #include "core/rpicam_app.hpp"
@@ -74,12 +75,13 @@ void SetExternalTrigger(bool& flag) {
 	if (!flag && (camera_model == gs::CameraHardware::CameraModel::InnoMakerIMX296GS_Mono ||
 				  camera_model == gs::CameraHardware::CameraModel::PiGS)) {
 
-		flag = true;
-
 		if (!SetImx296TriggerModeForCamera(gs::GsCameraNumber::kGsCamera2, true)) {
-			GS_LOG_TRACE_MSG(trace, "SetImx296TriggerModeForCamera failed for camera 2.");
-			return;
+			GS_LOG_MSG(warning, "SetExternalTrigger: failed for camera 2 - will retry on first priming pulse.");
+			return;  // flag stays false → backup call will retry
 		}
+
+		flag = true;  // Only set on success
+		GS_LOG_MSG(info, "SetExternalTrigger: per-camera trigger mode set to external for camera 2.");
 	}
 }
 
@@ -103,19 +105,22 @@ bool ball_flight_camera_event_loop(LibcameraJpegApp& app, cv::Mat& returnImg)
 
 	app.OpenCamera();
 
-	GS_LOG_TRACE_MSG(trace, "ball_flight_camera_event_loop started.  Opened Camera....");
+	// Suppress noisy libcamera tile_pipeline and debug messages (match Camera 1's behavior)
+	libcamera::logSetLevel("*", "ERROR");
 
-	// Set per-camera external trigger mode BEFORE StartCamera to prevent
-	// free-running frames when the global trigger_mode has been set to 0
-	// (internal) for Camera 1 on single-Pi setups.
-	bool external_trigger_is_set = false;
-	SetExternalTrigger(external_trigger_is_set);
+	GS_LOG_TRACE_MSG(trace, "ball_flight_camera_event_loop started.  Opened Camera....");
 
 	// The RGB flag still works for grayscale mono images
 	uint flags = RPiCamApp::FLAG_STILL_RGB;
 	app.ConfigureViewfinder(flags);
 
 	app.StartCamera();
+
+	// Set per-camera external trigger mode AFTER StartCamera.
+	// InnoMaker cameras require the sensor to be streaming before
+	// i2c trigger registers are accessible.
+	bool external_trigger_is_set = false;
+	SetExternalTrigger(external_trigger_is_set);
 
 	GS_LOG_TRACE_MSG(trace, "ball_flight_camera_event_loop started.  Started Camera....");
 
@@ -196,7 +201,7 @@ bool ball_flight_camera_event_loop(LibcameraJpegApp& app, cv::Mat& returnImg)
 
 		case kWaitingForFinalImageTrigger: {
 
-			GS_LOG_TRACE_MSG(trace, "Received Final Image Trigger - Image will be de-queued after next (flush) trigger.");
+			GS_LOG_MSG(info, "Received Final Image Trigger.");
 			// Create a completed request to make sure that the buffer(s) get re-used.
 			CompletedRequestPtr& completed_request = std::get<CompletedRequestPtr>(msg.payload);
 
@@ -206,7 +211,7 @@ bool ball_flight_camera_event_loop(LibcameraJpegApp& app, cv::Mat& returnImg)
 
 		case kWaitingForFinalImageFlush: {
 
-			GS_LOG_TRACE_MSG(trace, "Flushing Final Strobed Image");
+			GS_LOG_MSG(info, "Flushing Final Strobed Image.");
 			app.StopCamera();
 
 			Stream* stream = app.ViewfinderStream();
@@ -267,7 +272,7 @@ bool ball_flight_camera_event_loop(LibcameraJpegApp& app, cv::Mat& returnImg)
 			// Start the countdown timer.  During this time, we will just receive and
 			// ignore the priminmg pulses
 			timeOfFirstTrigger = std::chrono::steady_clock::now();
-			GS_LOG_TRACE_MSG(trace, "Received first (priming) trigger of first priming group.  Ignoring it.");
+			GS_LOG_MSG(info, "Received first priming trigger. Chillaxing...");
 
 			// Create a completed request to make sure that the buffer(s) get re-used.
 			CompletedRequestPtr& completed_request = std::get<CompletedRequestPtr>(msg.payload);
@@ -303,11 +308,11 @@ bool ball_flight_camera_event_loop(LibcameraJpegApp& app, cv::Mat& returnImg)
 
 					if (!golf_sim::GolfSimCamera::kCameraRequiresFlushPulse) {
 						// If no flush is required, jump straight to the final state
-						GS_LOG_TRACE_MSG(trace, "Priming period complete.  Ready for Final Image Trigger.");
+						GS_LOG_MSG(info, "Priming period complete. Ready for Final Image Trigger.");
 						state = kWaitingForFinalImageFlush;
 					}
 					else {
-						GS_LOG_TRACE_MSG(trace, "Priming period complete.  Ready for Final Image Trigger (before flush).");
+						GS_LOG_MSG(info, "Priming period complete. Ready for Final Image Trigger (before flush).");
 						state = kWaitingForFinalImageTrigger;
 					}
 				}

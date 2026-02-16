@@ -280,7 +280,7 @@
             "kPauseBeforeSendingImageFlushMs": "300",
             "kPauseBeforeSendingFinalImageTriggerMs": "2000",
             "kPauseToSetUpInnoMakerExternalTriggerMilliseconds": "500",
-            "kConnectionBoardVersion": "2"
+            "kConnectionBoardVersion": "1"
         },
         "image_capture": {
             "kMaxWatchingCropWidth": "96",

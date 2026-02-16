@@ -701,11 +701,14 @@ bool SetImx296TriggerModeForCamera(const GsCameraNumber camera_number, bool use_
                                              std::to_string(device_number) +
                                              (use_external_trigger ? " 1" : " 0");
 
-    GS_LOG_TRACE_MSG(trace, "SetImx296TriggerModeForCamera - command = " + trigger_mode_command);
+    GS_LOG_MSG(info, "SetImx296TriggerModeForCamera - command = " + trigger_mode_command);
 
     int command_result = system(trigger_mode_command.c_str());
+
+    GS_LOG_MSG(info, "SetImx296TriggerModeForCamera - result = " + std::to_string(command_result));
+
     if (command_result != 0) {
-        GS_LOG_TRACE_MSG(error, "SetImx296TriggerModeForCamera command failed.");
+        GS_LOG_MSG(error, "SetImx296TriggerModeForCamera command failed.");
         return false;
     }
 

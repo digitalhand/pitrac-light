@@ -414,6 +414,15 @@ bool ball_flight_camera_event_loop(LibcameraJpegApp& app, cv::Mat& returnImg)
 
 		options->no_raw = true;  // See https://forums.raspberrypi.com/viewtopic.php?t=369927
 
+		// On single-Pi setups, Camera 2 may have set the global trigger_mode=1 between
+		// PerformCameraSystemStartup and now. Re-set it to internal (0) right before
+		// starting Camera 1 to minimize the race window.
+		if (gs::GolfSimOptions::GetCommandLineOptions().system_mode_ == gs::SystemMode::kCamera1 ||
+		    gs::GolfSimOptions::GetCommandLineOptions().system_mode_ == gs::SystemMode::kCamera1TestStandalone) {
+			system("sudo $PITRAC_ROOT/assets/CameraTools/setCameraTriggerInternal.sh");
+			GS_LOG_TRACE_MSG(trace, "Re-set global trigger_mode to internal before Camera 1 start.");
+		}
+
 		app.StartCamera();
 		GS_LOG_TRACE_MSG(trace, "Camera started.");
 		auto start_time = std::chrono::high_resolution_clock::now();

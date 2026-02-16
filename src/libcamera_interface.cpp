@@ -529,7 +529,7 @@ bool DiscoverCameraLocation(const GsCameraNumber camera_number, int& media_numbe
     s += "    do\n";
     s += "        rm -f /tmp/discover_result.txt\n";
     s += "        media-ctl -d \"/dev/media$m\" --print-dot | grep imx > /tmp/discover_media.txt\n";
-    s += "        sed -n 's/.*v4l-subdev\\([0-9]*\\).*/\\1/p' < /tmp/discover_media.txt > /tmp/discover_device.txt\n";
+    s += "        awk -F\"imx296 \" '{print $2}' < /tmp/discover_media.txt | cut -d- -f1 > /tmp/discover_device.txt\n";
     s += "        echo -n -e \"$m \" > /tmp/discover_result.txt\n";
     s += "        cat /tmp/discover_device.txt >> /tmp/discover_result.txt\n";
 
@@ -1618,13 +1618,10 @@ bool PerformCameraSystemStartup() {
                 }
             }
 
-            // For InnoMaker cameras, also set per-camera trigger mode via i2c
-            if (GolfSimOptions::GetCommandLineOptions().run_single_pi_) {
-                if (!SetImx296TriggerModeForCamera(GsCameraNumber::kGsCamera1, false)) {
-                    GS_LOG_TRACE_MSG(trace, "Failed setting camera1 trigger mode to internal.");
-                    return false;
-                }
-            }
+            // Note: per-camera i2c trigger mode (imx296_trigger) cannot be set here
+            // because the sensor is not accessible via i2c until after libcamera opens it.
+            // The global trigger_mode is re-set to 0 in still_image_event_loop just before
+            // StartCamera() to defeat the race condition with Camera 2.
         }
         break;
 

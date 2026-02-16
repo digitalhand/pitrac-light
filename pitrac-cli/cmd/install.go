@@ -896,6 +896,29 @@ if [ "$PI_MODEL" = "pi5" ]; then
 elif [ "$PI_MODEL" = "pi4" ]; then
   ensure_config gpu_mem 256
 fi
+
+# IMX296 camera overlays for dual-camera single-Pi setup.
+# cam0 = internal trigger (Camera 1), cam1 + sync-sink = external trigger (Camera 2).
+# The cam1 parameter is required so the sync-sink overlay targets only Camera 2's sensor,
+# preventing it from forcing Camera 1 into external trigger mode at boot.
+ensure_dtoverlay() {
+  local overlay="$1"
+  if grep -qF "$overlay" "$CONFIG_FILE"; then
+    echo "dtoverlay $overlay already present"
+  else
+    echo "$overlay" | sudo tee -a "$CONFIG_FILE" >/dev/null
+    echo "Added $overlay"
+  fi
+}
+
+# Remove legacy overlay line that's missing the cam1 specifier
+if grep -q "^dtoverlay=imx296,sync-sink$" "$CONFIG_FILE"; then
+  sudo sed -i '/^dtoverlay=imx296,sync-sink$/d' "$CONFIG_FILE"
+  echo "Removed legacy dtoverlay=imx296,sync-sink (missing cam1)"
+fi
+
+ensure_dtoverlay "dtoverlay=imx296,cam0"
+ensure_dtoverlay "dtoverlay=imx296,cam1,sync-sink"
 `),
 			},
 		},

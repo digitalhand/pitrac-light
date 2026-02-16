@@ -529,7 +529,7 @@ bool DiscoverCameraLocation(const GsCameraNumber camera_number, int& media_numbe
     s += "    do\n";
     s += "        rm -f /tmp/discover_result.txt\n";
     s += "        media-ctl -d \"/dev/media$m\" --print-dot | grep imx > /tmp/discover_media.txt\n";
-    s += "        awk -F\"imx296 \" '{print $2}' < /tmp/discover_media.txt | cut -d- -f1 > /tmp/discover_device.txt\n";
+    s += "        grep -o 'v4l-subdev[0-9]*' < /tmp/discover_media.txt | grep -o '[0-9]*' > /tmp/discover_device.txt\n";
     s += "        echo -n -e \"$m \" > /tmp/discover_result.txt\n";
     s += "        cat /tmp/discover_device.txt >> /tmp/discover_result.txt\n";
 

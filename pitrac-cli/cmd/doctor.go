@@ -194,6 +194,48 @@ func runDoctor() error {
 				detail:   detail,
 			})
 		}
+
+		// IMX296 dtoverlay checks for dual-camera setup
+		overlayChecks := []struct {
+			name    string
+			line    string
+			detail  string
+		}{
+			{"boot:dtoverlay_imx296_cam0", "dtoverlay=imx296,cam0", "Camera 1 overlay (internal trigger)"},
+			{"boot:dtoverlay_imx296_cam1", "dtoverlay=imx296,cam1,sync-sink", "Camera 2 overlay (external trigger)"},
+		}
+		for _, oc := range overlayChecks {
+			found := false
+			for _, line := range strings.Split(content, "\n") {
+				if strings.TrimSpace(line) == oc.line {
+					found = true
+					break
+				}
+			}
+			detail := oc.detail
+			if !found {
+				detail = "missing: " + oc.line
+			}
+			results = append(results, checkResult{
+				name:     oc.name,
+				required: true,
+				ok:       found,
+				detail:   detail,
+			})
+		}
+
+		// Warn about legacy overlay without cam1 specifier
+		for _, line := range strings.Split(content, "\n") {
+			if strings.TrimSpace(line) == "dtoverlay=imx296,sync-sink" {
+				results = append(results, checkResult{
+					name:     "boot:dtoverlay_legacy_sync_sink",
+					required: true,
+					ok:       false,
+					detail:   "found legacy 'dtoverlay=imx296,sync-sink' (missing cam1) — run 'pitrac-cli install' to fix",
+				})
+				break
+			}
+		}
 	}
 	// If the file doesn't exist we're not on a Pi — skip silently.
 

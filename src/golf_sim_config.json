@@ -95,7 +95,9 @@
             "kPlacedNarrowingRadiiMaxRatio": "1.1",
             "kPlacedNarrowingStartingParam2": "0.9",
             "kPlacedNarrowingParam1": "300",
-            "kPlacedNarrowingRadiiDpParam": "1.5"
+            "kPlacedNarrowingRadiiDpParam": "1.5",
+            "kONNXRuntimeThreads": "4",
+            "kONNXRuntimeAutoFallback": "1"
         },
         "ball_position": {
             "kExpectedBallRadiusPixelsAt40cm": "87",
@@ -277,7 +279,8 @@
             "kPauseAfterSendingPreImageTriggerMs": "2000",
             "kPauseBeforeSendingImageFlushMs": "300",
             "kPauseBeforeSendingFinalImageTriggerMs": "2000",
-            "kPauseToSetUpInnoMakerExternalTriggerMilliseconds": "500"
+            "kPauseToSetUpInnoMakerExternalTriggerMilliseconds": "500",
+            "kConnectionBoardVersion": "2"
         },
         "image_capture": {
             "kMaxWatchingCropWidth": "96",
@@ -470,7 +473,8 @@
             "kAutoCalibrationBaselineBallPositionFromCamera1MetersForStraightOutCameras": ["-0.120", "-0.28", "0.44"],
             "kAutoCalibrationBaselineBallPositionFromCamera2MetersForStraightOutCameras": ["0.00", "0.095", "0.435"],
             "kAutoCalibrationBaselineBallPositionFromCamera1MetersForSkewedCameras": ["-0.120", "-0.28", "0.44"],
-            "kAutoCalibrationBaselineBallPositionFromCamera2MetersForSkewedCameras": ["0.00", "0.095", "0.435"]
+            "kAutoCalibrationBaselineBallPositionFromCamera2MetersForSkewedCameras": ["0.00", "0.095", "0.435"],
+            "kNumberOfCalibrationFailuresToTolerate": "4"
         },
         "golf_simulator_interfaces": {
             "kLaunchMonitorIdString": "PiTrac LM 0.1",

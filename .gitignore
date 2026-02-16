@@ -41,6 +41,8 @@ pitrac-cli/pitrac-cli
 # debug information files
 *.dwo
 
+__pycache__/
+
 *.claude
 CLAUDE.md
 AGENTS.md
@@ -50,3 +52,4 @@ PHASE_*
 VALIDATION_CHECKLIST*
 COPYRIGHT_HEADERS.md
 DOCUMENTATION_UPDATES.md
+CONFIG_MIGRATION_AUDIT.md

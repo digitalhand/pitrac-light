@@ -534,24 +534,6 @@ namespace golf_sim {
         return state::InitializingCamera1System{};
     }
 
-    // Camera2 can occasionally emit an image before camera1 transitions into
-    // BallHitNowWaitingForCam2Image (for example during priming/setup jitter).
-    // Treat this as an out-of-phase event and keep current state.
-    GolfSimState onEvent(const auto& state,
-        const GolfSimEvent::Camera2ImageReceived&) {
-        GS_LOG_MSG(warning, "Received out-of-phase Camera2ImageReceived event. Ignoring.");
-        return state;
-    }
-
-    // This transition event is meaningful only in WaitingForBallHit. If it
-    // arrives after a restart or in another state, ignore it instead of reset.
-    GolfSimState onEvent(const auto& state,
-        const GolfSimEvent::BeginWatchingForBallHit&) {
-        GS_LOG_MSG(warning, "Received out-of-phase BeginWatchingForBallHit event. Ignoring.");
-        return state;
-    }
-
-
     GolfSimState onEvent(const auto& state, const GolfSimEvent::EventLoopTick& eventLoopTick) {
         GS_LOG_MSG(debug, "Got an eventLoopTick.  Ignoring");
 
@@ -589,12 +571,8 @@ namespace golf_sim {
         cv::Mat image;  // Not sure if actually needed
 
         GS_LOG_TRACE_MSG(trace, "\n===========================\nGolfSim:  Cam2 System - Waiting for ball.\n");
-        if (!WaitForCam2Trigger(image) || image.empty()) {
-            GS_LOG_MSG(error, "Failed to WaitForCam2Trigger or received empty camera2 image. Restarting camera2 state.");
-
-            GolfSimEventElement restartEvent{ new GolfSimEvent::Restart{ } };
-            GolfSimEventQueue::QueueEvent(restartEvent);
-            return state::InitializingCamera2System{ };
+        if (!WaitForCam2Trigger(image)) {
+            GS_LOG_MSG(error, "Failed to WaitForCam2Trigger.");
         }
 
         GS_LOG_TRACE_MSG(trace, "WaitForCam2Trigger returned with image. ");

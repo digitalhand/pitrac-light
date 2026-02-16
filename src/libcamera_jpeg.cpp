@@ -67,8 +67,12 @@ void SetExternalTrigger(bool& flag) {
 
 	const gs::CameraHardware::CameraModel  camera_model = gs::GolfSimCamera::kSystemSlot2CameraType;
 
-	// This will take a moment to complete, so the waiting time to deal with it is dealt with elsehwere in the code
-	if (!flag && camera_model == gs::CameraHardware::CameraModel::InnoMakerIMX296GS_Mono) {
+	// This will take a moment to complete, so the waiting time to deal with it is dealt with elsewhere in the code.
+	// Both PiGS and InnoMaker use the IMX296 sensor and support per-camera i2c trigger mode.
+	// On single-Pi setups, the global trigger_mode may have been set to 0 (internal) for Camera 1,
+	// so Camera 2 must explicitly set its per-camera trigger mode to external via i2c.
+	if (!flag && (camera_model == gs::CameraHardware::CameraModel::InnoMakerIMX296GS_Mono ||
+				  camera_model == gs::CameraHardware::CameraModel::PiGS)) {
 
 		flag = true;
 
@@ -101,6 +105,12 @@ bool ball_flight_camera_event_loop(LibcameraJpegApp& app, cv::Mat& returnImg)
 
 	GS_LOG_TRACE_MSG(trace, "ball_flight_camera_event_loop started.  Opened Camera....");
 
+	// Set per-camera external trigger mode BEFORE StartCamera to prevent
+	// free-running frames when the global trigger_mode has been set to 0
+	// (internal) for Camera 1 on single-Pi setups.
+	bool external_trigger_is_set = false;
+	SetExternalTrigger(external_trigger_is_set);
+
 	// The RGB flag still works for grayscale mono images
 	uint flags = RPiCamApp::FLAG_STILL_RGB;
 	app.ConfigureViewfinder(flags);
@@ -115,10 +125,11 @@ bool ball_flight_camera_event_loop(LibcameraJpegApp& app, cv::Mat& returnImg)
 	// This should be slightly more time than it takes to get all of the timing pulses
 	long kQuiesceTimeMs = (gs::PulseStrobe::kNumberPrimingPulses ) * (1000 / gs::PulseStrobe::kPrimingPulseFPS) + 10;
 
-	// If appropriate, add the time we allow to setup external trigginer for the InnoMaker cameras
+	// If appropriate, add the time we allow to setup external trigger via per-camera i2c
 	const gs::CameraHardware::CameraModel  camera_model = gs::GolfSimCamera::kSystemSlot2CameraType;
 
-	if (camera_model == gs::CameraHardware::CameraModel::InnoMakerIMX296GS_Mono) {
+	if (camera_model == gs::CameraHardware::CameraModel::InnoMakerIMX296GS_Mono ||
+		camera_model == gs::CameraHardware::CameraModel::PiGS) {
 		kQuiesceTimeMs += gs::PulseStrobe::kPauseToSetUpInnoMakerExternalTriggerMilliseconds;
 	}
 
@@ -137,15 +148,10 @@ bool ball_flight_camera_event_loop(LibcameraJpegApp& app, cv::Mat& returnImg)
 												golf_sim::GolfSimCamera::kUsePreImageSubtraction);
 
 
-    // True if the InnoMaker camera external trigger script has not been called yet
-    // Note - The InnoMaker camera needs its trigger script to be called AFTER the camera
-    // has already started up.  No idea why.
-	bool innomaker_first_external_trigger_is_set = false;
-
-	// We want to make sure we are externally triggered here every time just in case we're using an InnoMaker camera
-
-	bool dummy = false;
-	SetExternalTrigger(dummy);
+	// Backup: if the pre-StartCamera SetExternalTrigger call above didn't work
+	// (e.g., sensor not accessible via i2c until after streaming starts), this
+	// call on the first priming pulse (line ~275) will catch it.
+	// Some IMX296 sensors require the trigger script after the camera starts streaming.
 
 	bool return_status = true;
 
@@ -267,7 +273,7 @@ bool ball_flight_camera_event_loop(LibcameraJpegApp& app, cv::Mat& returnImg)
 			CompletedRequestPtr& completed_request = std::get<CompletedRequestPtr>(msg.payload);
 
 			// (Re)set external triggering if we have not already done so
-			SetExternalTrigger(innomaker_first_external_trigger_is_set);
+			SetExternalTrigger(external_trigger_is_set);
 
 			state = kWaitingForFirstPrimingTimeEnd;
 			break;

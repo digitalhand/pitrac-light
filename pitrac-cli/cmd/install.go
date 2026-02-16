@@ -847,23 +847,54 @@ done
 		},
 		{
 			id:          "boot-config",
-			description: "Ensure camera_auto_detect=1 in Pi 5 boot config",
+			description: "Configure /boot/firmware/config.txt for PiTrac (camera, performance, I2C, SPI)",
 			steps: []commandStep{
-				shellStep("configure boot config for camera", `
-CONFIG_FILE="/boot/firmware/config.txt"
-if [ ! -f "$CONFIG_FILE" ]; then
-  echo "Boot config not found at $CONFIG_FILE (not a Pi 5?). Skipping."
+				shellStep("configure boot config for PiTrac", `
+# Resolve config file path
+if [ -f "/boot/firmware/config.txt" ]; then
+  CONFIG_FILE="/boot/firmware/config.txt"
+elif [ -f "/boot/config.txt" ]; then
+  CONFIG_FILE="/boot/config.txt"
+else
+  echo "No boot config.txt found. Skipping."
   exit 0
 fi
 
-if grep -q '^camera_auto_detect=1' "$CONFIG_FILE"; then
-  echo "camera_auto_detect=1 already set"
-elif grep -q '^camera_auto_detect=' "$CONFIG_FILE"; then
-  sudo sed -i 's/^camera_auto_detect=.*/camera_auto_detect=1/' "$CONFIG_FILE"
-  echo "Updated camera_auto_detect to 1"
+# Detect Pi model
+if grep -q "Raspberry Pi.*5" /proc/cpuinfo 2>/dev/null; then
+  PI_MODEL="pi5"
+elif grep -q "Raspberry Pi.*4" /proc/cpuinfo 2>/dev/null; then
+  PI_MODEL="pi4"
 else
-  echo 'camera_auto_detect=1' | sudo tee -a "$CONFIG_FILE" >/dev/null
-  echo "Added camera_auto_detect=1"
+  PI_MODEL="unknown"
+fi
+echo "Detected Pi model: ${PI_MODEL}"
+
+# Helper: set or update a key=value in config
+ensure_config() {
+  local key="$1" value="$2"
+  if grep -q "^${key}=${value}" "$CONFIG_FILE"; then
+    echo "${key}=${value} already set"
+  elif grep -q "^${key}=" "$CONFIG_FILE"; then
+    sudo sed -i "s/^${key}=.*/${key}=${value}/" "$CONFIG_FILE"
+    echo "Updated ${key} to ${value}"
+  else
+    echo "${key}=${value}" | sudo tee -a "$CONFIG_FILE" >/dev/null
+    echo "Added ${key}=${value}"
+  fi
+}
+
+# Universal parameters
+ensure_config camera_auto_detect 1
+ensure_config "dtparam=i2c_arm" on
+ensure_config "dtparam=spi" on
+ensure_config force_turbo 1
+
+# Model-specific parameters
+if [ "$PI_MODEL" = "pi5" ]; then
+  ensure_config arm_boost 1
+elif [ "$PI_MODEL" = "pi4" ]; then
+  ensure_config gpu_mem 256
 fi
 `),
 			},

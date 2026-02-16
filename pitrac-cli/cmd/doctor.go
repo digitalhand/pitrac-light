@@ -128,21 +128,72 @@ func runDoctor() error {
 		results = append(results, brokerCheck)
 	}
 
-	// Boot config check (Pi 5)
+	// Boot config checks
 	bootConfig := "/boot/firmware/config.txt"
+	if _, err := os.Stat(bootConfig); err != nil {
+		bootConfig = "/boot/config.txt"
+	}
 	if data, err := os.ReadFile(bootConfig); err == nil {
 		content := string(data)
-		cameraAutoDetect := strings.Contains(content, "camera_auto_detect=1")
-		detail := "enabled"
-		if !cameraAutoDetect {
-			detail = "not set in " + bootConfig
+
+		// Detect Pi model for model-specific checks
+		piModel := "unknown"
+		if cpuinfo, err := os.ReadFile("/proc/cpuinfo"); err == nil {
+			cpuStr := string(cpuinfo)
+			if strings.Contains(cpuStr, "Raspberry Pi") && strings.Contains(cpuStr, "5") {
+				piModel = "pi5"
+			} else if strings.Contains(cpuStr, "Raspberry Pi") && strings.Contains(cpuStr, "4") {
+				piModel = "pi4"
+			}
 		}
-		results = append(results, checkResult{
-			name:     "boot:camera_auto_detect",
-			required: true,
-			ok:       cameraAutoDetect,
-			detail:   detail,
-		})
+
+		// Universal boot parameter checks
+		bootChecks := []struct {
+			name  string
+			key   string
+			value string
+		}{
+			{"boot:camera_auto_detect", "camera_auto_detect", "1"},
+			{"boot:dtparam_i2c_arm", "dtparam=i2c_arm", "on"},
+			{"boot:dtparam_spi", "dtparam=spi", "on"},
+			{"boot:force_turbo", "force_turbo", "1"},
+		}
+
+		// Add model-specific checks
+		if piModel == "pi5" {
+			bootChecks = append(bootChecks, struct {
+				name  string
+				key   string
+				value string
+			}{"boot:arm_boost", "arm_boost", "1"})
+		} else if piModel == "pi4" {
+			bootChecks = append(bootChecks, struct {
+				name  string
+				key   string
+				value string
+			}{"boot:gpu_mem", "gpu_mem", "256"})
+		}
+
+		for _, bc := range bootChecks {
+			found := false
+			for _, line := range strings.Split(content, "\n") {
+				line = strings.TrimSpace(line)
+				if line == bc.key+"="+bc.value {
+					found = true
+					break
+				}
+			}
+			detail := "enabled"
+			if !found {
+				detail = "not set in " + bootConfig
+			}
+			results = append(results, checkResult{
+				name:     bc.name,
+				required: true,
+				ok:       found,
+				detail:   detail,
+			})
+		}
 	}
 	// If the file doesn't exist we're not on a Pi — skip silently.
 

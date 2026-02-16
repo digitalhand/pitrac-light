@@ -452,6 +452,10 @@ func startCamera(camera, simPort int) error {
 		return nil
 	}
 
+	// Kill any orphaned pitrac_lm processes before starting, otherwise
+	// the camera device may still be held from a previous unclean shutdown.
+	killOrphanedLMProcesses()
+
 	binary, err := resolvePitracBinary()
 	if err != nil {
 		return err
@@ -535,7 +539,7 @@ func stopCamera(camera int) error {
 		"still running after SIGTERM, sending SIGKILL...")
 	_ = proc.Signal(syscall.SIGKILL)
 
-	if waitForProcessExit(pid, 2*time.Second) {
+	if waitForProcessExit(pid, 3*time.Second) {
 		_ = os.Remove(pidPath)
 		printStatus(markSuccess(), fmt.Sprintf("camera%d", camera), "killed")
 		return nil
@@ -544,6 +548,31 @@ func stopCamera(camera int) error {
 	printStatus(markFailure(), fmt.Sprintf("camera%d", camera),
 		fmt.Sprintf("PID %d could not be stopped", pid))
 	return fmt.Errorf("camera %d (PID %d) could not be stopped", camera, pid)
+}
+
+// killOrphanedLMProcesses finds and kills any pitrac_lm processes not tracked
+// by PID files.  This handles cases where the service didn't shut down cleanly
+// and the camera devices are still held.
+func killOrphanedLMProcesses() {
+	out, err := exec.Command("pgrep", "-x", "pitrac_lm").Output()
+	if err != nil {
+		return // no processes found
+	}
+
+	pids := strings.Fields(strings.TrimSpace(string(out)))
+	if len(pids) == 0 {
+		return
+	}
+
+	printStatus(markWarning(), "cleanup",
+		fmt.Sprintf("found %d orphaned pitrac_lm process(es)", len(pids)))
+
+	_ = exec.Command("killall", "-SIGTERM", "pitrac_lm").Run()
+	time.Sleep(2 * time.Second)
+	_ = exec.Command("killall", "-SIGKILL", "pitrac_lm").Run()
+	time.Sleep(1 * time.Second)
+
+	printStatus(markSuccess(), "cleanup", "orphaned processes killed")
 }
 
 func printCameraStatus(camera int) {
@@ -588,7 +617,13 @@ func runLMStop(cmd *cobra.Command, args []string) error {
 	if err := stopCamera(2); err != nil {
 		return err
 	}
-	return stopCamera(1)
+	if err := stopCamera(1); err != nil {
+		return err
+	}
+
+	// Clean up any orphaned processes that weren't tracked by PID files
+	killOrphanedLMProcesses()
+	return nil
 }
 
 func runLMStatus(cmd *cobra.Command, args []string) error {

@@ -83,9 +83,9 @@ namespace golf_sim {
 
     LibcameraJpegApp* LibCameraInterface::libcamera_app_[] = { nullptr, nullptr };
 
-    bool camera_location_found_ = false;
-    int previously_found_media_number_ = -1;
-    int previously_found_device_number_ = -1;
+    bool camera_location_found_[2] = { false, false };
+    int previously_found_media_number_[2] = { -1, -1 };
+    int previously_found_device_number_[2] = { -1, -1 };
 
     void SetLibCameraLoggingOff() {
 
@@ -500,11 +500,13 @@ namespace golf_sim {
 
 bool DiscoverCameraLocation(const GsCameraNumber camera_number, int& media_number, int& device_number) {
 
+    int camera_index = (camera_number == GsCameraNumber::kGsCamera2) ? 1 : 0;
+
     // The camera location won't change during the course of a single exceution, so 
     // no need to figure this out more than once - re-use the earlier values if we can
-    if (camera_location_found_) {
-        media_number = previously_found_media_number_;
-        device_number = previously_found_device_number_;
+    if (camera_location_found_[camera_index]) {
+        media_number = previously_found_media_number_[camera_index];
+        device_number = previously_found_device_number_[camera_index];
 
         return true;
     }
@@ -539,10 +541,8 @@ bool DiscoverCameraLocation(const GsCameraNumber camera_number, int& media_numbe
     const std::string script_name = "/tmp/pi_cam_location.sh";
 
 	// Ensure that we can write to the output file if it was already created
-    std::string script_command = "sudo rm " + script_name;
+    std::string script_command = "sudo rm -f " + script_name;
     system(script_command.c_str());
-
-    int cmdResult = system(script_command.c_str());
 
 	// It's ok if the file wasn't there.  No need to check the return code
     
@@ -566,7 +566,7 @@ bool DiscoverCameraLocation(const GsCameraNumber camera_number, int& media_numbe
 
     script_command = script_name;
 
-    cmdResult = system(script_command.c_str());
+    int cmdResult = system(script_command.c_str());
 
     if (cmdResult != 0) {
         GS_LOG_TRACE_MSG(error, "system(DiscoverCameraLocation) failed.  Return value was: " + std::to_string(cmdResult));
@@ -674,9 +674,39 @@ bool DiscoverCameraLocation(const GsCameraNumber camera_number, int& media_numbe
     }
 
     // Signal that we won't need to do this again during this run.
-    camera_location_found_ = true;
-    previously_found_media_number_ = media_number;
-    previously_found_device_number_ = device_number;
+    camera_location_found_[camera_index] = true;
+    previously_found_media_number_[camera_index] = media_number;
+    previously_found_device_number_[camera_index] = device_number;
+
+    return true;
+}
+
+bool SetImx296TriggerModeForCamera(const GsCameraNumber camera_number, bool use_external_trigger) {
+    const CameraHardware::CameraModel camera_model =
+        (camera_number == GsCameraNumber::kGsCamera1) ? GolfSimCamera::kSystemSlot1CameraType : GolfSimCamera::kSystemSlot2CameraType;
+
+    if (camera_model != CameraHardware::CameraModel::InnoMakerIMX296GS_Mono) {
+        return true;
+    }
+
+    int media_number = -1;
+    int device_number = -1;
+    if (!DiscoverCameraLocation(camera_number, media_number, device_number)) {
+        GS_LOG_TRACE_MSG(error, "SetImx296TriggerModeForCamera failed to discover camera location.");
+        return false;
+    }
+
+    const std::string trigger_mode_command = "$PITRAC_ROOT/assets/CameraTools/imx296_trigger " +
+                                             std::to_string(device_number) +
+                                             (use_external_trigger ? " 1" : " 0");
+
+    GS_LOG_TRACE_MSG(trace, "SetImx296TriggerModeForCamera - command = " + trigger_mode_command);
+
+    int command_result = system(trigger_mode_command.c_str());
+    if (command_result != 0) {
+        GS_LOG_TRACE_MSG(error, "SetImx296TriggerModeForCamera command failed.");
+        return false;
+    }
 
     return true;
 }
@@ -1586,23 +1616,10 @@ bool PerformCameraSystemStartup() {
                 }
             }
             else {
-                /****
-                const CameraHardware::CameraModel  camera_model = GolfSimCamera::kSystemSlot1CameraType;
-                if (camera_model == CameraHardware::CameraModel::InnoMakerIMX296GS_Mono) {
-                    std::string trigger_mode_command = "$PITRAC_ROOT/assets/CameraTools/imx296_trigger 6 0";
-
-                    GS_LOG_TRACE_MSG(trace, "Camera 1 trigger_mode_command = " + trigger_mode_command);
-                    int command_result = system(trigger_mode_command.c_str());
-
-                    if (command_result != 0) {
-                        GS_LOG_TRACE_MSG(trace, "system(trigger_mode_command) failed.");
-                        return false;
-                    }
+                if (!SetImx296TriggerModeForCamera(GsCameraNumber::kGsCamera1, false)) {
+                    GS_LOG_TRACE_MSG(trace, "Failed setting camera1 trigger mode to internal.");
+                    return false;
                 }
-                else {
-                    GS_LOG_TRACE_MSG(trace, "Running in single-pi mode, so not setting camera triggering (internal or external) programmatically.  Instead, please see the following discussion on how to setup the boot/firmware.config.txt dtoverlays for triggering:  https://forums.raspberrypi.com/viewtopic.php?p=2315464#p2315464.");
-                }
-                    ****/
             }
         }
         break;
@@ -1622,17 +1639,9 @@ bool PerformCameraSystemStartup() {
                 }
             }
             else {
-                const CameraHardware::CameraModel  camera_model = GolfSimCamera::kSystemSlot2CameraType;
-
-                if (camera_model == CameraHardware::CameraModel::InnoMakerIMX296GS_Mono) {
-                    std::string trigger_mode_command = "$PITRAC_ROOT/assets/CameraTools/imx296_trigger 4 1";
-
-                    int command_result = system(trigger_mode_command.c_str());
-
-                    if (command_result != 0) {
-                        GS_LOG_TRACE_MSG(trace, "system(trigger_mode_command) failed.");
-                        return false;
-                    }
+                if (!SetImx296TriggerModeForCamera(GsCameraNumber::kGsCamera2, true)) {
+                    GS_LOG_TRACE_MSG(trace, "Failed setting camera2 trigger mode to external.");
+                    return false;
                 }
             }
 

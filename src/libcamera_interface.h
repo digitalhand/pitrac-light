@@ -119,6 +119,9 @@ namespace golf_sim {
 	// Determine where the camera is, such as /dev/media2 at device 6
 	bool DiscoverCameraLocation(const GsCameraNumber camera_number, int& media_number, int& device_number);
 
+	// Sets IMX296 trigger mode by resolving the camera's current I2C bus dynamically.
+	bool SetImx296TriggerModeForCamera(const GsCameraNumber camera_number, bool use_external_trigger);
+
 	bool RetrieveCameraInfo(const GsCameraNumber camera_number, cv::Vec2i& resolution, uint& frameRate, bool restartCamera = false);
 
 	LibcameraJpegApp* ConfigureForLibcameraStill(const GolfSimCamera& camera);

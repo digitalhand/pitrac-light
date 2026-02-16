@@ -72,16 +72,8 @@ void SetExternalTrigger(bool& flag) {
 
 		flag = true;
 
-		// The imx296_trigger i2c tool sets trigger mode on a specific camera
-		// by bus number.  The bus number differs between Pi 4 and Pi 5.
-		// TODO: detect the correct bus for camera 2 on Pi 5 (i2c@80000).
-		std::string trigger_mode_command = "$PITRAC_ROOT/assets/CameraTools/imx296_trigger 4 1";
-
-		GS_LOG_TRACE_MSG(trace, "ball_flight_camera_event_loop - Camera 2 trigger_mode_command = " + trigger_mode_command);
-		int command_result = system(trigger_mode_command.c_str());
-
-		if (command_result != 0) {
-			GS_LOG_TRACE_MSG(trace, "system(trigger_mode_command) failed.");
+		if (!SetImx296TriggerModeForCamera(gs::GsCameraNumber::kGsCamera2, true)) {
+			GS_LOG_TRACE_MSG(trace, "SetImx296TriggerModeForCamera failed for camera 2.");
 			return;
 		}
 	}

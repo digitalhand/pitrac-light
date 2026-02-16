@@ -452,10 +452,6 @@ func startCamera(camera, simPort int) error {
 		return nil
 	}
 
-	// Kill any orphaned pitrac_lm processes before starting, otherwise
-	// the camera device may still be held from a previous unclean shutdown.
-	killOrphanedLMProcesses()
-
 	binary, err := resolvePitracBinary()
 	if err != nil {
 		return err
@@ -592,6 +588,9 @@ func runLMStart(cmd *cobra.Command, args []string) error {
 
 	printHeader("Launch Monitor Start")
 
+	// Clean up orphaned processes before starting any cameras
+	killOrphanedLMProcesses()
+
 	switch camera {
 	case 1:
 		return startCamera(1, simPort)
@@ -637,6 +636,9 @@ func runLMStatus(cmd *cobra.Command, args []string) error {
 
 func runServiceStart(cmd *cobra.Command, args []string) error {
 	printHeader("Service Start")
+
+	// Clean up orphaned processes before starting any cameras
+	killOrphanedLMProcesses()
 
 	// 1. Start broker
 	fmt.Println()

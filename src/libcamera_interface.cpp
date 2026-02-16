@@ -1519,7 +1519,6 @@ bool WaitForCam2Trigger(cv::Mat& return_image) {
             options->contrast = LibCameraInterface::kCamera2Contrast;
         }
 
-        options->awb = "indoor";
         options->immediate = true;
         options->timeout.set("0ms");  // Wait forever for external trigger
         const CameraHardware::CameraModel  camera_model = GolfSimCamera::kSystemSlot1CameraType;
@@ -1647,7 +1646,7 @@ bool PerformCameraSystemStartup() {
 
             // Create a camera just for purposes of setting the tuning file variable
             GolfSimCamera camera;
-            camera.camera_hardware_.init_camera_parameters(GsCameraNumber::kGsCamera2, GolfSimCamera::kSystemSlot2CameraType, GolfSimCamera::kSystemSlot2LensType, GolfSimCamera::kSystemSlot1CameraOrientation);
+            camera.camera_hardware_.init_camera_parameters(GsCameraNumber::kGsCamera2, GolfSimCamera::kSystemSlot2CameraType, GolfSimCamera::kSystemSlot2LensType, GolfSimCamera::kSystemSlot2CameraOrientation);
 
             if (!SetLibcameraTuningFileEnvVariable(camera)) {
                 GS_LOG_TRACE_MSG(error, "failed to SetLibcameraTuningFileEnvVariable");

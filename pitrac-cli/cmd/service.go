@@ -34,6 +34,7 @@ func init() {
 
 	serviceLMStartCmd.Flags().Int("camera", 0, "start only camera 1 or 2 (default: both)")
 	serviceLMStartCmd.Flags().Int("sim-port", 0, "simulator connect port (overrides config default)")
+	serviceLMStartCmd.Flags().Bool("trace", false, "enable trace-level logging")
 }
 
 // --- parent commands ---
@@ -378,11 +379,16 @@ sudo systemctl enable activemq
 
 // ─── Camera implementations ─────────────────────────────────────────
 
-func buildCameraServiceArgs(camera, simPort int) ([]string, error) {
+func buildCameraServiceArgs(camera, simPort int, trace bool) ([]string, error) {
 	values := envMapFromProcess()
 	commonArgs, err := buildCommonArgs(values)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build common args: %w", err)
+	}
+
+	logLevel := "info"
+	if trace {
+		logLevel = "trace"
 	}
 
 	var modeArgs []string
@@ -392,7 +398,7 @@ func buildCameraServiceArgs(camera, simPort int) ([]string, error) {
 			"--system_mode", "camera1",
 			"--search_center_x", "850",
 			"--search_center_y", "500",
-			"--logging_level=info",
+			"--logging_level=" + logLevel,
 			"--artifact_save_level=final_results_only",
 			"--camera_gain", "1.1",
 		}
@@ -400,7 +406,7 @@ func buildCameraServiceArgs(camera, simPort int) ([]string, error) {
 		modeArgs = []string{
 			"--system_mode", "camera2",
 			"--camera_gain", "3.0",
-			"--logging_level=info",
+			"--logging_level=" + logLevel,
 			"--artifact_save_level=final_results_only",
 		}
 	default:
@@ -443,7 +449,7 @@ func resolvePitracBinary() (string, error) {
 	return "", fmt.Errorf("pitrac_lm not found at /usr/lib/pitrac/\n  %s", hint)
 }
 
-func startCamera(camera, simPort int) error {
+func startCamera(camera, simPort int, trace bool) error {
 	pidPath := cameraPIDPath(camera)
 	existing := checkStaleAndClean(pidPath)
 	if existing != 0 {
@@ -457,7 +463,7 @@ func startCamera(camera, simPort int) error {
 		return err
 	}
 
-	allArgs, err := buildCameraServiceArgs(camera, simPort)
+	allArgs, err := buildCameraServiceArgs(camera, simPort, trace)
 	if err != nil {
 		return err
 	}
@@ -585,6 +591,7 @@ func printCameraStatus(camera int) {
 func runLMStart(cmd *cobra.Command, args []string) error {
 	camera, _ := cmd.Flags().GetInt("camera")
 	simPort, _ := cmd.Flags().GetInt("sim-port")
+	trace, _ := cmd.Flags().GetBool("trace")
 
 	printHeader("Launch Monitor Start")
 
@@ -593,17 +600,17 @@ func runLMStart(cmd *cobra.Command, args []string) error {
 
 	switch camera {
 	case 1:
-		return startCamera(1, simPort)
+		return startCamera(1, simPort, trace)
 	case 2:
-		return startCamera(2, simPort)
+		return startCamera(2, simPort, trace)
 	case 0:
 		// Start both: camera 1 first, then camera 2
-		if err := startCamera(1, simPort); err != nil {
+		if err := startCamera(1, simPort, trace); err != nil {
 			return err
 		}
 		printStatus(markInfo(), "startup", "waiting 2s before starting camera 2...")
 		time.Sleep(2 * time.Second)
-		return startCamera(2, simPort)
+		return startCamera(2, simPort, trace)
 	default:
 		return fmt.Errorf("--camera must be 1 or 2, got %d", camera)
 	}
@@ -665,14 +672,14 @@ func runServiceStart(cmd *cobra.Command, args []string) error {
 
 	// 2. Start camera 1
 	fmt.Println()
-	if err := startCamera(1, 0); err != nil {
+	if err := startCamera(1, 0, false); err != nil {
 		return err
 	}
 
 	// 3. Wait then start camera 2
 	printStatus(markInfo(), "startup", "waiting 2s before starting camera 2...")
 	time.Sleep(2 * time.Second)
-	if err := startCamera(2, 0); err != nil {
+	if err := startCamera(2, 0, false); err != nil {
 		return err
 	}
 

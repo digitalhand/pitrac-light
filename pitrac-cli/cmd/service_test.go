@@ -8,7 +8,7 @@ func TestBuildCameraServiceArgs_AlwaysSinglePi(t *testing.T) {
 	t.Setenv("PITRAC_WEBSERVER_SHARE_DIR", "/tmp/LM_Shares/Images/")
 	t.Setenv("PITRAC_BASE_IMAGE_LOGGING_DIR", "/tmp/LM_Shares/PiTracLogs")
 
-	camera1Args, err := buildCameraServiceArgs(1, 0)
+	camera1Args, err := buildCameraServiceArgs(1, 0, false)
 	if err != nil {
 		t.Fatalf("camera1 args failed: %v", err)
 	}
@@ -19,7 +19,7 @@ func TestBuildCameraServiceArgs_AlwaysSinglePi(t *testing.T) {
 		t.Fatalf("camera1 args missing --system_mode camera1: %v", camera1Args)
 	}
 
-	camera2Args, err := buildCameraServiceArgs(2, 0)
+	camera2Args, err := buildCameraServiceArgs(2, 0, false)
 	if err != nil {
 		t.Fatalf("camera2 args failed: %v", err)
 	}

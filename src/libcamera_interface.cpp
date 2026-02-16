@@ -1604,17 +1604,21 @@ bool PerformCameraSystemStartup() {
         case SystemMode::kCamera1TestStandalone:
         case SystemMode::kTestSpin: {
 
-            if (!GolfSimOptions::GetCommandLineOptions().run_single_pi_) {
+            // Always set the module-level trigger_mode to internal (0) for Camera 1.
+            // On single-Pi setups, the sync-sink dtoverlay sets trigger_mode=1 globally
+            // at boot, which would leave Camera 1 stuck waiting for external triggers.
+            // This must be set regardless of camera model or single/dual Pi mode.
+            {
                 std::string trigger_mode_command = "sudo $PITRAC_ROOT/assets/CameraTools/setCameraTriggerInternal.sh";
-
                 int command_result = system(trigger_mode_command.c_str());
-
                 if (command_result != 0) {
-                    GS_LOG_TRACE_MSG(trace, "system(trigger_mode_command) failed.");
+                    GS_LOG_TRACE_MSG(trace, "system(setCameraTriggerInternal.sh) failed.");
                     return false;
                 }
             }
-            else {
+
+            // For InnoMaker cameras, also set per-camera trigger mode via i2c
+            if (GolfSimOptions::GetCommandLineOptions().run_single_pi_) {
                 if (!SetImx296TriggerModeForCamera(GsCameraNumber::kGsCamera1, false)) {
                     GS_LOG_TRACE_MSG(trace, "Failed setting camera1 trigger mode to internal.");
                     return false;
@@ -1627,17 +1631,19 @@ bool PerformCameraSystemStartup() {
         case SystemMode::kRunCam2ProcessForPi1Processing:
         case SystemMode::kCamera2TestStandalone: {
 
-            if (!GolfSimOptions::GetCommandLineOptions().run_single_pi_) {
+            // Always set the module-level trigger_mode to external (1) for Camera 2.
+            // This ensures Camera 2 waits for XTR trigger pulses from the strobe system.
+            {
                 std::string trigger_mode_command = "sudo $PITRAC_ROOT/assets/CameraTools/setCameraTriggerExternal.sh";
-
                 int command_result = system(trigger_mode_command.c_str());
-
                 if (command_result != 0) {
-                    GS_LOG_TRACE_MSG(trace, "system(trigger_mode_command) failed.");
+                    GS_LOG_TRACE_MSG(trace, "system(setCameraTriggerExternal.sh) failed.");
                     return false;
                 }
             }
-            else {
+
+            // For InnoMaker cameras, also set per-camera trigger mode via i2c
+            if (GolfSimOptions::GetCommandLineOptions().run_single_pi_) {
                 if (!SetImx296TriggerModeForCamera(GsCameraNumber::kGsCamera2, true)) {
                     GS_LOG_TRACE_MSG(trace, "Failed setting camera2 trigger mode to external.");
                     return false;

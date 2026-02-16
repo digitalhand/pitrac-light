@@ -216,6 +216,24 @@ namespace golf_sim::sim::common {
     }
 
 
+    void GsSimInterface::SendHeartbeat(bool ball_detected) {
+#ifdef __unix__  // Ignore in Windows environment
+        if (!sims_initialized_) {
+            return;
+        }
+
+        GsResults heartbeat;
+        heartbeat.result_message_is_keepalive_ = true;
+
+        for (auto interface : interfaces_) {
+            if (interface == nullptr) {
+                continue;
+            }
+            interface->SendResults(heartbeat);
+        }
+#endif
+    }
+
     void GsSimInterface::IncrementShotCounter() {
         shot_counter_++;
     }

@@ -165,6 +165,7 @@ namespace golf_sim {
         // TBD - see if we need to move this back to the initializating state
         if (!waitingForBallState.already_sent_waiting_ipc_message) {
             GsUISystem::SendIPCStatusMessage(GsIPCResultType::kWaitingForBallToAppear);
+            GsSimInterface::SendHeartbeat(false);
         }
 
         // This check will be called repeatedly by re-queuing events.
@@ -182,6 +183,7 @@ namespace golf_sim {
         }
 
         if (found) {
+            GsSimInterface::SendHeartbeat(true);
 
             if (GolfSimOptions::GetCommandLineOptions().system_mode_ == SystemMode::kCamera1Calibrate ||
                 GolfSimOptions::GetCommandLineOptions().system_mode_ == SystemMode::kCamera2Calibrate) {

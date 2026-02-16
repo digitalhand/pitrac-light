@@ -81,6 +81,9 @@ namespace common {
         // Returns true only if each of the available interfaces is armed
         static bool GetAllSystemsArmed();
 
+        // Heartbeat support for external simulators
+        static void SendHeartbeat(bool ball_detected);
+
     protected:
 
         // Typical derived-class behavior will be to convert the results into a

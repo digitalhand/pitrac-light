@@ -55,10 +55,56 @@ def _save_frame(frame: np.ndarray, log_dir: Path, prefix: str, index: int) -> No
     logger.info("Saved %s", path)
 
 
+def _log_saved_calibration_values(config: dict, camera_num: int, title: str) -> None:
+    values = config_manager.get_camera_calibration_values(config, camera_num)
+    logger.info("%s", title)
+    logger.info(
+        "gs_config.cameras.kCamera%dCalibrationMatrix=%s",
+        camera_num,
+        values[f"kCamera{camera_num}CalibrationMatrix"],
+    )
+    logger.info(
+        "gs_config.cameras.kCamera%dDistortionVector=%s",
+        camera_num,
+        values[f"kCamera{camera_num}DistortionVector"],
+    )
+    logger.info(
+        "gs_config.cameras.kCamera%dFocalLength=%s",
+        camera_num,
+        values[f"kCamera{camera_num}FocalLength"],
+    )
+    logger.info(
+        "gs_config.cameras.kCamera%dAngles=%s",
+        camera_num,
+        values[f"kCamera{camera_num}Angles"],
+    )
+    logger.info(
+        "gs_config.cameras.kExpectedBallRadiusPixelsAt40cmCamera%d=%s",
+        camera_num,
+        values[f"kExpectedBallRadiusPixelsAt40cmCamera{camera_num}"],
+    )
+
+
+def _log_startup_calibration_coverage(config: dict, camera_num: int) -> None:
+    coverage = config_manager.get_startup_calibration_coverage(config, camera_num)
+    logger.info(
+        "Calibration startup coverage for camera %d (pitrac_lm fallback behavior):",
+        camera_num,
+    )
+    for item in coverage:
+        logger.info(
+            "%s -> %s (fallback: %s)",
+            item["key"],
+            item["status"],
+            item["fallback"],
+        )
+
+
 # Auto-capture settings
 INTRINSIC_AUTO_CAPTURE_COUNT = 15
 INTRINSIC_AUTO_CAPTURE_INTERVAL = 2.0  # seconds between captures
 EXTRINSIC_AUTO_CAPTURE_COUNT = 6
+EXTRINSIC_STROBED_AUTO_CAPTURE_INTERVAL = 5.0  # seconds between camera2 strobed captures
 
 
 # ---------------------------------------------------------------------------
@@ -113,13 +159,20 @@ def _build_extrinsic_hud(samples: int, avg_focal: float, detected: bool) -> list
     ]
 
 
-def _build_extrinsic_auto_hud(samples: int, target: int, detected: bool) -> list[str]:
+def _build_extrinsic_auto_hud(
+    samples: int,
+    target: int,
+    detected: bool,
+    captures: int | None = None,
+) -> list[str]:
     det = "BALL DETECTED" if detected else "waiting for ball..."
-    return [
-        f"AUTO-CAPTURING  {samples}/{target}",
-        f"{det}",
-        "Q=cancel",
-    ]
+    if captures is not None:
+        lines = [f"AUTO-CAPTURING  frames: {captures}/{target}  samples: {samples}/{target}"]
+    else:
+        lines = [f"AUTO-CAPTURING  {samples}/{target}"]
+    lines.append(det)
+    lines.append("Q=cancel")
+    return lines
 
 
 def _build_extrinsic_done_hud(focal: float, yaw: float, pitch: float) -> list[str]:
@@ -260,6 +313,11 @@ def run_intrinsic(
             config_manager.set_distortion_vector(config, camera_num, result.dist_coeffs)
             backup = config_manager.save_config(config, config_path)
             logger.info("Saved intrinsic calibration to %s (backup: %s)", config_path, backup)
+            _log_saved_calibration_values(
+                config,
+                camera_num,
+                "Saved intrinsic calibration outcome:",
+            )
 
         elif key == ord("g"):
             out = f"charuco_board_{constants.CHARUCO_COLS}x{constants.CHARUCO_ROWS}.png"
@@ -280,6 +338,35 @@ def run_intrinsic(
 # ---------------------------------------------------------------------------
 # Extrinsic calibration loop
 # ---------------------------------------------------------------------------
+
+def _detect_extrinsic_ball(frame: np.ndarray, is_strobed_cam2: bool) -> tuple[tuple[float, float], float] | None:
+    if not is_strobed_cam2:
+        return extrinsic.detect_ball(frame)
+
+    # Camera 2 strobed/IR frames are often darker; use relaxed settings first.
+    detection = extrinsic.detect_ball(
+        frame,
+        min_radius=15,
+        max_radius=140,
+        param1=70,
+        param2=22,
+        min_brightness=35,
+        allow_dark_fallback=True,
+    )
+    if detection is not None:
+        return detection
+
+    # Retry with even more permissive Hough thresholds as a fallback.
+    return extrinsic.detect_ball(
+        frame,
+        min_radius=12,
+        max_radius=170,
+        param1=50,
+        param2=16,
+        min_brightness=15,
+        allow_dark_fallback=True,
+    )
+
 
 def run_extrinsic(
     source: camera.CameraSource,
@@ -317,11 +404,45 @@ def run_extrinsic(
     state = State.EXTRINSIC_PREVIEW
     last_detection: tuple[tuple[float, float], float] | None = None
     log_dir = _get_log_dir(camera_num, "extrinsic")
+    is_strobed_cam2 = (
+        camera_num == 2 and isinstance(source, camera.StrobedStillSource)
+    )
+    if is_strobed_cam2:
+        source.set_output_template(log_dir / "log_cam2_cal.png")
+    last_auto_strobed_capture_time: float | None = None
+    auto_capture_frames = 0
+    strobed_min_valid_samples = 3
 
+    frame = np.zeros((constants.RESOLUTION_Y, constants.RESOLUTION_X, 3), dtype=np.uint8)
+    detection: tuple[tuple[float, float], float] | None = None
     while True:
-        frame = source.capture()
-        detection = extrinsic.detect_ball(frame)
-        last_detection = detection
+        # Camera 2 strobed mode:
+        # 1) Never fire in preview (wait for ENTER/SPACE user action).
+        # 2) During auto-capture, enforce a fixed delay between captures.
+        should_capture = True
+        if is_strobed_cam2:
+            if state in (State.EXTRINSIC_PREVIEW, State.EXTRINSIC_DONE):
+                should_capture = False
+            elif state == State.EXTRINSIC_AUTO and last_auto_strobed_capture_time is not None:
+                elapsed = time.monotonic() - last_auto_strobed_capture_time
+                if elapsed < EXTRINSIC_STROBED_AUTO_CAPTURE_INTERVAL:
+                    should_capture = False
+
+        capture_performed = False
+        if should_capture:
+            try:
+                frame = source.capture()
+                capture_performed = True
+                detection = _detect_extrinsic_ball(frame, is_strobed_cam2)
+                last_detection = detection
+                if is_strobed_cam2 and state == State.EXTRINSIC_AUTO:
+                    auto_capture_frames += 1
+                    last_auto_strobed_capture_time = time.monotonic()
+            except Exception as e:
+                logger.warning("Capture failed: %s", e)
+                detection = None
+        else:
+            detection = None
 
         avg_focal = sum(focal_samples) / len(focal_samples) if focal_samples else 0.0
 
@@ -333,7 +454,8 @@ def run_extrinsic(
                 vis = display.draw_focal_length_info(
                     vis, focal_samples[-1], len(focal_samples), avg_focal,
                 )
-            hud = _build_extrinsic_hud(len(focal_samples), avg_focal, detection is not None)
+            hud_detected = detection is not None or is_strobed_cam2
+            hud = _build_extrinsic_hud(len(focal_samples), avg_focal, hud_detected)
             display.show_frame(WINDOW, vis, hud)
 
         elif state == State.EXTRINSIC_AUTO:
@@ -347,7 +469,8 @@ def run_extrinsic(
                 if constants.MIN_FOCAL_LENGTH_MM <= focal <= constants.MAX_FOCAL_LENGTH_MM:
                     focal_samples.append(focal)
                     avg_focal = sum(focal_samples) / len(focal_samples)
-                    _save_frame(frame, log_dir, "extrinsic", len(focal_samples))
+                    if not is_strobed_cam2:
+                        _save_frame(frame, log_dir, "extrinsic", len(focal_samples))
                     logger.info(
                         "Auto-sample %d/%d: radius=%.1f px, focal=%.4f mm (avg=%.4f)",
                         len(focal_samples), EXTRINSIC_AUTO_CAPTURE_COUNT,
@@ -355,6 +478,12 @@ def run_extrinsic(
                     )
                 else:
                     logger.warning("Focal %.2f mm out of range, skipping", focal)
+            elif is_strobed_cam2 and capture_performed:
+                logger.warning(
+                    "Auto-capture frame %d/%d has no detectable ball",
+                    auto_capture_frames,
+                    EXTRINSIC_AUTO_CAPTURE_COUNT,
+                )
 
             if focal_samples:
                 vis = display.draw_focal_length_info(
@@ -364,23 +493,55 @@ def run_extrinsic(
 
             hud = _build_extrinsic_auto_hud(
                 len(focal_samples), EXTRINSIC_AUTO_CAPTURE_COUNT,
-                detection is not None,
+                (detection is not None) or is_strobed_cam2,
+                captures=auto_capture_frames if is_strobed_cam2 else None,
             )
             display.show_frame(WINDOW, vis, hud)
 
-            # Auto-finalize once we have enough samples
-            if len(focal_samples) >= EXTRINSIC_AUTO_CAPTURE_COUNT:
+            # Non-strobed mode finalizes based on sample count.
+            should_finalize = False
+            if not is_strobed_cam2:
+                should_finalize = len(focal_samples) >= EXTRINSIC_AUTO_CAPTURE_COUNT
+            else:
+                # Strobed camera2 mode: always stop after exactly 6 captures.
+                if auto_capture_frames >= EXTRINSIC_AUTO_CAPTURE_COUNT:
+                    if len(focal_samples) >= strobed_min_valid_samples:
+                        should_finalize = True
+                        if len(focal_samples) < EXTRINSIC_AUTO_CAPTURE_COUNT:
+                            logger.warning(
+                                "Using %d valid samples from %d captured frames for finalization",
+                                len(focal_samples),
+                                auto_capture_frames,
+                            )
+                    else:
+                        logger.error(
+                            "Captured %d/%d frames but only %d valid ball detections (need >= %d).",
+                            auto_capture_frames,
+                            EXTRINSIC_AUTO_CAPTURE_COUNT,
+                            len(focal_samples),
+                            strobed_min_valid_samples,
+                        )
+                        state = State.EXTRINSIC_PREVIEW
+                        focal_samples.clear()
+                        auto_capture_frames = 0
+                        last_auto_strobed_capture_time = None
+
+            if should_finalize:
                 final_focal = sum(focal_samples) / len(focal_samples)
 
                 if not (constants.MIN_FOCAL_LENGTH_MM <= final_focal <= constants.MAX_FOCAL_LENGTH_MM):
                     logger.error("Average focal %.2f mm out of valid range", final_focal)
                     state = State.EXTRINSIC_PREVIEW
                     focal_samples.clear()
+                    auto_capture_frames = 0
+                    last_auto_strobed_capture_time = None
                     continue
 
                 if last_detection is None:
                     logger.warning("No ball in last frame for angle computation")
                     state = State.EXTRINSIC_PREVIEW
+                    auto_capture_frames = 0
+                    last_auto_strobed_capture_time = None
                     continue
 
                 center, radius = last_detection
@@ -402,6 +563,8 @@ def run_extrinsic(
                     logger.error("Angle computation failed: %s", e)
                     state = State.EXTRINSIC_PREVIEW
                     focal_samples.clear()
+                    auto_capture_frames = 0
+                    last_auto_strobed_capture_time = None
 
         elif state == State.EXTRINSIC_DONE:
             vis = frame.copy()
@@ -417,6 +580,8 @@ def run_extrinsic(
                 # Cancel auto-capture, go back to preview
                 state = State.EXTRINSIC_PREVIEW
                 focal_samples.clear()
+                auto_capture_frames = 0
+                last_auto_strobed_capture_time = None
                 logger.info("Auto-capture cancelled")
             else:
                 break
@@ -424,18 +589,37 @@ def run_extrinsic(
         elif key == 13 and state == State.EXTRINSIC_PREVIEW:  # ENTER
             # Start auto-capture mode
             focal_samples.clear()
+            auto_capture_frames = 0
+            last_auto_strobed_capture_time = None
             state = State.EXTRINSIC_AUTO
-            logger.info(
-                "Auto-capture started — collecting %d samples",
-                EXTRINSIC_AUTO_CAPTURE_COUNT,
-            )
+            if is_strobed_cam2:
+                logger.info(
+                    "Auto-capture started — collecting %d frames (5s apart), requiring >=%d valid samples",
+                    EXTRINSIC_AUTO_CAPTURE_COUNT,
+                    strobed_min_valid_samples,
+                )
+            else:
+                logger.info(
+                    "Auto-capture started — collecting %d samples",
+                    EXTRINSIC_AUTO_CAPTURE_COUNT,
+                )
 
         elif key == ord(" ") and state in (
             State.EXTRINSIC_PREVIEW, State.EXTRINSIC_AUTO,
         ):
             # Manual single capture
+            if is_strobed_cam2:
+                try:
+                    frame = source.capture()
+                    detection = _detect_extrinsic_ball(frame, is_strobed_cam2)
+                    last_detection = detection
+                except Exception as e:
+                    logger.warning("Capture failed: %s", e)
+                    detection = None
+
             if detection is None:
-                logger.warning("No ball detected — place ball at calibration position")
+                if camera_num != 2:
+                    logger.warning("No ball detected — place ball at calibration position")
                 continue
 
             center, radius = detection
@@ -455,8 +639,18 @@ def run_extrinsic(
         elif key == ord("s") and state == State.EXTRINSIC_DONE:
             config_manager.set_focal_length(config, camera_num, final_focal)
             config_manager.set_camera_angles(config, camera_num, final_yaw, final_pitch)
+            config_manager.set_expected_ball_radius_pixels_at_40cm(
+                config,
+                camera_num,
+                final_focal,
+            )
             backup = config_manager.save_config(config, config_path)
             logger.info("Saved extrinsic calibration to %s (backup: %s)", config_path, backup)
+            _log_saved_calibration_values(
+                config,
+                camera_num,
+                "Saved extrinsic calibration outcome:",
+            )
 
     if state == State.EXTRINSIC_DONE:
         return (final_focal, final_yaw, final_pitch)
@@ -485,30 +679,52 @@ def main() -> int:
 
     config = config_manager.load_config(config_path)
     logger.info("Config loaded from %s", config_path)
-
-    # Create camera source
-    try:
-        source = camera.create_source(
-            camera_num=args.camera,
-            image_dir=args.image_dir,
-        )
-    except Exception as e:
-        logger.error("Failed to create camera source: %s", e)
-        return 1
+    _log_startup_calibration_coverage(config, args.camera)
 
     cv2.namedWindow(WINDOW, cv2.WINDOW_NORMAL)
 
     try:
         if args.mode in ("intrinsic", "full"):
+            try:
+                intrinsic_source = camera.create_source(
+                    camera_num=args.camera,
+                    image_dir=args.image_dir,
+                )
+            except Exception as e:
+                logger.error("Failed to create intrinsic camera source: %s", e)
+                return 1
+
             logger.info("Starting intrinsic calibration (camera %d)", args.camera)
-            intrinsic_result = run_intrinsic(source, args.camera, config, config_path)
+            try:
+                run_intrinsic(intrinsic_source, args.camera, config, config_path)
+            finally:
+                intrinsic_source.release()
 
         if args.mode in ("extrinsic", "full"):
+            use_strobe = args.image_dir is None and args.camera == 2
+            try:
+                extrinsic_source = camera.create_source(
+                    camera_num=args.camera,
+                    image_dir=args.image_dir,
+                    use_strobe=use_strobe,
+                    config_path=config_path,
+                )
+            except Exception as e:
+                logger.error("Failed to create extrinsic camera source: %s", e)
+                return 1
+
+            if use_strobe:
+                logger.info("Extrinsic mode using strobed still capture (camera 2).")
+            else:
+                logger.info("Extrinsic mode using live camera capture.")
+
             logger.info("Starting extrinsic calibration (camera %d)", args.camera)
-            run_extrinsic(source, args.camera, config, config_path)
+            try:
+                run_extrinsic(extrinsic_source, args.camera, config, config_path)
+            finally:
+                extrinsic_source.release()
 
     finally:
-        source.release()
         cv2.destroyAllWindows()
 
     return 0

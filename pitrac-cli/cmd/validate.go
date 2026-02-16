@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -132,9 +131,9 @@ func runValidateConfig(cmd *cobra.Command, args []string) error {
 	}
 
 	if root := strings.TrimSpace(values["PITRAC_ROOT"]); root != "" {
-		configPath := filepath.Join(root, "src", "golf_sim_config.json")
-		if st, statErr := os.Stat(configPath); statErr != nil || st.IsDir() {
-			printStatus(markFailure(), "golf_sim_config", "missing: "+configPath)
+		configPath, resolveErr := resolveConfigFile(root)
+		if resolveErr != nil {
+			printStatus(markFailure(), "golf_sim_config", resolveErr.Error())
 			failures++
 		} else {
 			printStatus(markSuccess(), "golf_sim_config", configPath)

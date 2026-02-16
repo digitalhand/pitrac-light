@@ -19,20 +19,41 @@ from __future__ import annotations
 import logging
 import os
 import re
+import shutil
 import subprocess
 import tempfile
+import time
+from datetime import datetime
 from pathlib import Path
 from typing import Protocol
 
 import cv2
 import numpy as np
 
-from . import constants
+from . import config_manager, constants
 
 logger = logging.getLogger(__name__)
 
 # Size of chunks read from the rpicam-vid MJPEG pipe
 _PIPE_READ_SIZE = 65536
+_CAM2_HELPER_INIT_WAIT_SECONDS = 4.0
+_STROBED_CAPTURE_TIMEOUT_SECONDS = 60
+
+
+def _default_strobe_output_path(camera_num: int) -> Path:
+    base_dir = Path(
+        os.environ.get(
+            "PITRAC_BASE_IMAGE_LOGGING_DIR",
+            os.path.expanduser("~/LM_Shares/PiTracLogs"),
+        )
+    ).expanduser()
+    return base_dir / f"log_cam{camera_num}_cal"
+
+
+def _format_base_image_logging_dir(path: Path) -> str:
+    """Return a trailing-slash path for C++ string-concat logging."""
+    resolved = str(path.expanduser())
+    return resolved if resolved.endswith("/") else resolved + "/"
 
 
 class CameraSource(Protocol):
@@ -351,6 +372,319 @@ class RpicamSource:
         logger.info("RpicamSource released")
 
 
+class StrobedStillSource:
+    """Capture one frame at a time via pitrac_lm --cam_still_mode."""
+
+    def __init__(
+        self,
+        camera_num: int = 2,
+        output_file: Path | None = None,
+        config_path: Path | None = None,
+    ):
+        if camera_num not in (1, 2):
+            raise ValueError(f"camera_num must be 1 or 2, got {camera_num}")
+        self._camera_num = camera_num
+        self._output_template = (output_file or _default_strobe_output_path(camera_num)).expanduser()
+        self._capture_index = 0
+        self._pitrac_root = self._resolve_pitrac_root()
+        self._binary = self._resolve_pitrac_binary()
+        if config_path is not None:
+            self._config_file = config_path.expanduser().resolve()
+        else:
+            self._config_file = config_manager.resolve_config_path(None)
+        self._cam2_helper_process: subprocess.Popen | None = None
+        self._cam2_helper_log_file: Path | None = None
+        self._cam2_helper_log_handle = None
+        self._cam2_helper_artifact_dir = Path(
+            tempfile.mkdtemp(prefix="pitrac_cal_cam2_helper_")
+        )
+
+    def _resolve_pitrac_root(self) -> Path:
+        root = os.environ.get("PITRAC_ROOT", "").strip()
+        if not root:
+            raise RuntimeError("PITRAC_ROOT is required for strobed extrinsic mode")
+        p = Path(root)
+        if not p.exists():
+            raise RuntimeError(f"PITRAC_ROOT does not exist: {p}")
+        return p
+
+    def _resolve_pitrac_binary(self) -> Path:
+        dev = self._pitrac_root / "src" / "build" / "pitrac_lm"
+        if dev.exists():
+            return dev
+        installed = Path("/usr/lib/pitrac/pitrac_lm")
+        if installed.exists():
+            return installed
+        raise RuntimeError(
+            "pitrac_lm not found at "
+            f"{dev} or {installed}. Build/install PiTrac LM first."
+        )
+
+    def _required_env(self, key: str) -> str:
+        value = os.environ.get(key, "").strip()
+        if not value:
+            raise RuntimeError(f"{key} must be set for strobed extrinsic mode")
+        return value
+
+    def _build_args(self, output_file: Path) -> list[str]:
+        msg_broker = self._required_env("PITRAC_MSG_BROKER_FULL_ADDRESS")
+        web_share = self._required_env("PITRAC_WEBSERVER_SHARE_DIR")
+        # For cam_still_mode, C++ concatenates base dir + fixed filename.
+        # Use the calibration folder as base dir and pass only basename.
+        base_logs = _format_base_image_logging_dir(output_file.parent)
+        output_name = output_file.name
+
+        mode = "camera2" if self._camera_num == 2 else "camera1"
+        search_x = "650" if self._camera_num == 2 else "850"
+        search_y = "500"
+
+        args = [
+            "--run_single_pi",
+            "--system_mode", mode,
+            "--config_file", str(self._config_file),
+            "--msg_broker_address", msg_broker,
+            "--web_server_share_dir", web_share,
+            "--base_image_logging_dir", base_logs,
+            "--cam_still_mode",
+            "--output_filename", output_name,
+            "--search_center_x", search_x,
+            "--search_center_y", search_y,
+            "--logging_level=info",
+        ]
+
+        gspro_host = os.environ.get("PITRAC_GSPRO_HOST_ADDRESS", "").strip()
+        if gspro_host:
+            args.extend(["--gspro_host_address", gspro_host])
+
+        return args
+
+    def _build_cam2_helper_args(self) -> list[str]:
+        msg_broker = self._required_env("PITRAC_MSG_BROKER_FULL_ADDRESS")
+        web_share = self._required_env("PITRAC_WEBSERVER_SHARE_DIR")
+        # Helper artifacts are internal; keep them out of user calibration folders.
+        base_logs = _format_base_image_logging_dir(self._cam2_helper_artifact_dir)
+
+        args = [
+            "--run_single_pi",
+            "--system_mode",
+            "runCam2ProcessForPi1Processing",
+            "--config_file",
+            str(self._config_file),
+            "--msg_broker_address",
+            msg_broker,
+            "--web_server_share_dir",
+            web_share,
+            "--base_image_logging_dir",
+            base_logs,
+            "--logging_level=info",
+            "--artifact_save_level=final_results_only",
+        ]
+
+        gspro_host = os.environ.get("PITRAC_GSPRO_HOST_ADDRESS", "").strip()
+        if gspro_host:
+            args.extend(["--gspro_host_address", gspro_host])
+
+        return args
+
+    def _cam2_helper_log_tail(self, max_chars: int = 1000) -> str:
+        if self._cam2_helper_log_file is None or not self._cam2_helper_log_file.exists():
+            return ""
+        try:
+            text = self._cam2_helper_log_file.read_text(errors="replace")
+            return text[-max_chars:]
+        except OSError:
+            return ""
+
+    def _stop_cam2_helper(self) -> None:
+        if self._cam2_helper_process is not None:
+            proc = self._cam2_helper_process
+            if proc.poll() is None:
+                proc.terminate()
+                try:
+                    proc.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+                    proc.wait()
+            self._cam2_helper_process = None
+
+        if self._cam2_helper_log_handle is not None:
+            try:
+                self._cam2_helper_log_handle.close()
+            except OSError:
+                pass
+            self._cam2_helper_log_handle = None
+            self._cam2_helper_log_file = None
+
+        if self._cam2_helper_artifact_dir.exists():
+            shutil.rmtree(self._cam2_helper_artifact_dir, ignore_errors=True)
+
+    def _ensure_cam2_helper(self) -> None:
+        if self._camera_num != 2:
+            return
+        if self._cam2_helper_process is not None and self._cam2_helper_process.poll() is None:
+            return
+
+        self._stop_cam2_helper()
+
+        base_logs = self._cam2_helper_artifact_dir.expanduser()
+        base_logs.mkdir(parents=True, exist_ok=True)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        self._cam2_helper_log_file = base_logs / f"calibration_cam2_helper_{timestamp}.log"
+        self._cam2_helper_log_handle = self._cam2_helper_log_file.open("a", encoding="utf-8")
+
+        cmd = [str(self._binary), *self._build_cam2_helper_args()]
+        logger.info("Starting camera2 helper: %s", " ".join(cmd))
+        env = os.environ.copy()
+        self._cam2_helper_process = subprocess.Popen(
+            cmd,
+            stdout=self._cam2_helper_log_handle,
+            stderr=subprocess.STDOUT,
+            env=env,
+            cwd=str(self._pitrac_root),
+        )
+        logger.info(
+            "Waiting %.1fs for camera2 helper initialization (PID %d)",
+            _CAM2_HELPER_INIT_WAIT_SECONDS,
+            self._cam2_helper_process.pid,
+        )
+        time.sleep(_CAM2_HELPER_INIT_WAIT_SECONDS)
+
+        rc = self._cam2_helper_process.poll()
+        if rc is not None:
+            tail = self._cam2_helper_log_tail()
+            self._stop_cam2_helper()
+            raise RuntimeError(
+                "camera2 helper exited during initialization "
+                f"(exit {rc}). Helper log tail: {tail}"
+            )
+
+    def _fallback_output_candidates(self, output_file: Path, start_monotonic: float) -> list[Path]:
+        candidates: list[Path] = []
+        primary_logs = output_file.parent
+        fallback_logs = Path(self._required_env("PITRAC_BASE_IMAGE_LOGGING_DIR")).expanduser()
+        expected_name = output_file.name
+
+        # If C++ wrote to default web image names, pull the most recent one.
+        known_names = (
+            "log_cam2_last_strobed_img.png",
+            "log_cam2_last_strobed_img_232_fast.png",
+            expected_name,
+        )
+        search_dirs = [primary_logs]
+        if fallback_logs != primary_logs:
+            search_dirs.append(fallback_logs)
+
+        for name in known_names:
+            for base_logs in search_dirs:
+                p = base_logs / name
+                if p.exists():
+                    candidates.append(p)
+
+        # Last resort: newest png in searched dirs modified after capture started.
+        try:
+            for base_logs in search_dirs:
+                for p in sorted(base_logs.glob("*.png"), key=lambda x: x.stat().st_mtime, reverse=True):
+                    if p.stat().st_mtime >= (time.time() - (time.monotonic() - start_monotonic) - 1.0):
+                        candidates.append(p)
+                        break
+        except OSError:
+            pass
+
+        # Remove duplicates while preserving order.
+        deduped: list[Path] = []
+        seen: set[Path] = set()
+        for p in candidates:
+            if p in seen:
+                continue
+            seen.add(p)
+            deduped.append(p)
+        return deduped
+
+    def set_output_template(self, output_template: Path) -> None:
+        self._output_template = output_template.expanduser()
+
+    def _next_output_file(self) -> Path:
+        template = self._output_template
+        if template.suffix:
+            suffix = template.suffix
+            stem = template.stem
+        else:
+            suffix = ".png"
+            stem = template.name
+
+        if "cal" not in stem.lower():
+            stem = f"{stem}_cal"
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        self._capture_index += 1
+        filename = f"{stem}_{timestamp}_{self._capture_index:03d}{suffix}"
+        return template.parent / filename
+
+    def capture(self) -> np.ndarray:
+        output_file = self._next_output_file()
+        output_file.parent.mkdir(parents=True, exist_ok=True)
+
+        if self._camera_num == 2:
+            self._ensure_cam2_helper()
+
+        cmd = [str(self._binary), *self._build_args(output_file)]
+        logger.info("Strobed capture: %s", " ".join(cmd))
+        started = time.monotonic()
+        proc = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            env=os.environ.copy(),
+            cwd=str(self._pitrac_root),
+            timeout=_STROBED_CAPTURE_TIMEOUT_SECONDS,
+        )
+
+        resolved_file = output_file
+        frame = cv2.imread(str(resolved_file))
+        if frame is None:
+            for candidate in self._fallback_output_candidates(output_file, started):
+                test = cv2.imread(str(candidate))
+                if test is None:
+                    continue
+                frame = test
+                resolved_file = candidate
+                break
+
+        if frame is None:
+            stdout_tail = (proc.stdout or "").strip()[-500:]
+            stderr_tail = (proc.stderr or "").strip()[-500:]
+            helper_tail = self._cam2_helper_log_tail()
+            raise RuntimeError(
+                f"strobed capture did not produce a valid image: {output_file} "
+                f"(stdout_tail={stdout_tail}, stderr_tail={stderr_tail}, "
+                f"helper_log_tail={helper_tail})"
+            )
+
+        if resolved_file != output_file:
+            try:
+                # Avoid duplicates for timestamped capture files.
+                if resolved_file.name.startswith("log_cam2_cal_"):
+                    shutil.move(str(resolved_file), str(output_file))
+                    logger.info("Captured image fallback moved from %s to %s", resolved_file, output_file)
+                else:
+                    shutil.copy2(resolved_file, output_file)
+                    logger.info("Captured image fallback copied from %s to %s", resolved_file, output_file)
+            except OSError as ex:
+                logger.warning("Failed transferring fallback image %s -> %s: %s", resolved_file, output_file, ex)
+
+        if proc.returncode != 0:
+            # Some camera2 still runs return non-zero even after image output.
+            logger.warning(
+                "Strobed capture process exited with %d but image was captured (%s)",
+                proc.returncode,
+                output_file,
+            )
+        return frame
+
+    def release(self) -> None:
+        self._stop_cam2_helper()
+
+
 class DirectorySource:
     """Load images from a directory, cycling through them on each capture().
 
@@ -404,6 +738,9 @@ def _is_upside_down(camera_num: int) -> bool:
 def create_source(
     camera_num: int = 1,
     image_dir: Path | None = None,
+    use_strobe: bool = False,
+    strobe_output: Path | None = None,
+    config_path: Path | None = None,
 ) -> CameraSource:
     """Factory: return a DirectorySource if *image_dir* given, else RpicamSource.
 
@@ -414,6 +751,13 @@ def create_source(
     """
     if image_dir is not None:
         return DirectorySource(image_dir)
+    if use_strobe:
+        logger.info("Using strobed still source for camera %d", camera_num)
+        return StrobedStillSource(
+            camera_num=camera_num,
+            output_file=strobe_output,
+            config_path=config_path,
+        )
     rpicam_index = camera_num - 1
     flip = _is_upside_down(camera_num)
     logger.info("Mapping PiTrac camera %d → rpicam-vid --camera %d", camera_num, rpicam_index)

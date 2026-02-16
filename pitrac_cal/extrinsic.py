@@ -31,6 +31,7 @@ def detect_ball(
     param2: float = 40,
     min_dist: int | None = None,
     min_brightness: int = 140,
+    allow_dark_fallback: bool = False,
 ) -> tuple[tuple[float, float], float] | None:
     """Detect a golf ball using HoughCircles with brightness validation.
 
@@ -63,6 +64,8 @@ def detect_ball(
 
     h, w = gray.shape[:2]
 
+    best_dark_candidate: tuple[tuple[float, float], float, float] | None = None
+
     # Check each candidate (sorted by accumulator score) for brightness
     for c in circles[0]:
         cx, cy, r = float(c[0]), float(c[1]), float(c[2])
@@ -90,10 +93,24 @@ def detect_ball(
             )
             return (cx, cy), r
         else:
+            if allow_dark_fallback:
+                if best_dark_candidate is None or mean_brightness > best_dark_candidate[2]:
+                    best_dark_candidate = ((cx, cy), r, mean_brightness)
             logger.debug(
                 "Ball candidate at (%.0f, %.0f) r=%.1f brightness=%.0f — rejected (dark)",
                 cx, cy, r, mean_brightness,
             )
+
+    if allow_dark_fallback and best_dark_candidate is not None:
+        center, radius, brightness = best_dark_candidate
+        logger.info(
+            "Using dark-ball fallback at (%.0f, %.0f) r=%.1f brightness=%.0f",
+            center[0],
+            center[1],
+            radius,
+            brightness,
+        )
+        return center, radius
 
     return None
 

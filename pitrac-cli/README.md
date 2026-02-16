@@ -132,6 +132,15 @@ Current required file checks (repo-root relative):
 - `assets/models/best.onnx`
 - `assets/CameraTools/imx296_trigger`
 
+Additional Raspberry Pi camera checks (when running on Pi):
+- `media-ctl` availability
+- IMX296 discovery via `/dev/media*` (reports `mediaN -> i2c-X`)
+- `/dev/i2c-X` presence for each discovered IMX296 bus
+- tuning file checksum validation for:
+  - `assets/CameraTools/imx296_noir.json`
+  - `assets/CameraTools/imx296_mono.json`
+  against active libcamera tuning dirs (`/usr/share/...` and `/usr/local/share/...` for Pi model)
+
 ### `env`
 Manage env file generation, display, and shell integration.
 
@@ -176,9 +185,9 @@ pitrac-cli config validate [--env-file <path>]
 
 **`config init`** copies `$PITRAC_ROOT/src/golf_sim_config.json` to `~/.pitrac/config/golf_sim_config.json`. Fails if the destination already exists unless `--force` is passed.
 
-**`config args`** merges process environment + env file values, validates required vars, and outputs the resolved `pitrac_lm` arguments. The config file is resolved in order:
-1. `~/.pitrac/config/golf_sim_config.json` (if it exists, preferred)
-2. `$PITRAC_ROOT/src/golf_sim_config.json` (fallback)
+**`config args`** merges process environment + env file values, validates required vars, and outputs the resolved `pitrac_lm` arguments.
+Runtime config is always `~/.pitrac/config/golf_sim_config.json`.
+`$PITRAC_ROOT/src/golf_sim_config.json` is bootstrap-only and used by `config init`.
 
 ### `run`
 Run `pitrac_lm` in various modes without memorizing argument syntax.
@@ -191,7 +200,7 @@ pitrac-cli run cam             [--camera <1|2>] [--dry-run]
 pitrac-cli run calibrate       [--camera <1|2>] [--dry-run]
 pitrac-cli run auto-calibrate  [--camera <1|2>] [--dry-run]
 pitrac-cli run shutdown        [--dry-run]
-pitrac-cli run calibrate-gui   [--camera <1|2>] [--mode <intrinsic|extrinsic|full>] [--dry-run]
+pitrac-cli run calibrate-gui   [--camera <1|2>] [--mode <intrinsic|extrinsic|full>] [--no-strobe] [--dry-run]
 ```
 
 Shared flags:
@@ -219,6 +228,9 @@ pitrac-cli run still --camera 2 --dry-run
 ```
 
 **`calibrate-gui`** launches the Python-based calibration GUI (`pitrac_cal`) instead of `pitrac_lm`. It requires Python 3.9+, OpenCV with Python bindings, and picamera2 on the Pi.
+The config path passed to the GUI follows the same runtime rule as other CLI commands:
+`~/.pitrac/config/golf_sim_config.json` only.
+`$PITRAC_ROOT/src/golf_sim_config.json` is bootstrap-only (`config init` source).
 
 ```bash
 pitrac-cli run calibrate-gui --camera 1 --mode full         # intrinsic then extrinsic
@@ -230,6 +242,7 @@ pitrac-cli run calibrate-gui --camera 2 --mode extrinsic    # focal length + ang
 |------|---------|-------------|
 | `--camera` | `1` | Camera number (1 or 2) |
 | `--mode` | `full` | `intrinsic`, `extrinsic`, or `full` |
+| `--no-strobe` | `false` | Disable default strobed still capture for camera 2 extrinsic mode |
 | `--dry-run` | `false` | Print the `python3` command without executing |
 
 The command sets `DISPLAY=:0.0` for VNC compatibility. See [`pitrac_cal/README.md`](../pitrac_cal/README.md) for the full calibration workflow, keyboard controls, and troubleshooting.
@@ -289,7 +302,7 @@ pitrac-cli validate install
 | `--env-file` | `~/.pitrac/.env` | Path to the env file |
 | `--shell-file` | auto (`.bashrc` / `.zshrc`) | Shell RC file expected to source the env file |
 
-**`validate config`** — checks that required env vars are present and that `golf_sim_config.json` exists at `$PITRAC_ROOT/src/golf_sim_config.json`.
+**`validate config`** — checks that required env vars are present and that runtime config exists at `~/.pitrac/config/golf_sim_config.json`.
 
 | Flag | Default | Description |
 | --- | --- | --- |
@@ -328,6 +341,11 @@ pitrac-cli service lm status                    # check camera process status
 ```
 
 `service lm start` and `service start` always launch `pitrac_lm` with `--run_single_pi`.
+
+Before starting camera processes on Raspberry Pi, the CLI now runs an automatic camera preflight:
+- syncs `imx296_noir.json` and `imx296_mono.json` from `assets/CameraTools/` into libcamera tuning dirs (using `sudo install`)
+- validates IMX296 dynamic bus detection (`media-ctl`)
+- validates discovered `/dev/i2c-*` nodes exist
 
 | Flag | Default | Description |
 | --- | --- | --- |

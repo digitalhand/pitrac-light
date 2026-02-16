@@ -144,16 +144,23 @@ func resolveConfigEnv(cmd *cobra.Command) (map[string]string, error) {
 	return values, nil
 }
 
-// resolveConfigFile returns the path to golf_sim_config.json, preferring
-// ~/.pitrac/config/ if it exists, falling back to $PITRAC_ROOT/src/.
-func resolveConfigFile(pitracRoot string) string {
-	if home, err := os.UserHomeDir(); err == nil {
-		userConfig := filepath.Join(home, ".pitrac", "config", "golf_sim_config.json")
-		if _, err := os.Stat(userConfig); err == nil {
-			return userConfig
-		}
+// resolveConfigFile returns the runtime config path.
+// Runtime always uses ~/.pitrac/config/golf_sim_config.json.
+// The repo src/golf_sim_config.json is bootstrap-only (config init source).
+func resolveConfigFile(pitracRoot string) (string, error) {
+	_ = pitracRoot
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve home directory: %w", err)
 	}
-	return filepath.Join(pitracRoot, "src", "golf_sim_config.json")
+	userConfig := filepath.Join(home, ".pitrac", "config", "golf_sim_config.json")
+	if st, statErr := os.Stat(userConfig); statErr != nil || st.IsDir() {
+		return "", fmt.Errorf(
+			"runtime config missing: %s (run: pitrac-cli config init)",
+			userConfig,
+		)
+	}
+	return userConfig, nil
 }
 
 func buildCommonArgs(values map[string]string) ([]string, error) {
@@ -163,7 +170,10 @@ func buildCommonArgs(values map[string]string) ([]string, error) {
 		}
 	}
 
-	configFile := resolveConfigFile(values["PITRAC_ROOT"])
+	configFile, err := resolveConfigFile(values["PITRAC_ROOT"])
+	if err != nil {
+		return nil, err
+	}
 
 	cmdArgs := []string{
 		"--config_file", configFile,
@@ -214,7 +224,10 @@ func runConfigDetection(cmd *cobra.Command, args []string) error {
 		pitracRoot = detected
 	}
 
-	configPath := resolveConfigFile(pitracRoot)
+	configPath, err := resolveConfigFile(pitracRoot)
+	if err != nil {
+		return err
+	}
 
 	method, _ := cmd.Flags().GetString("method")
 	placementMethod, _ := cmd.Flags().GetString("placement-method")

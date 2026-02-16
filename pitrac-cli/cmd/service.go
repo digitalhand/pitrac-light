@@ -598,6 +598,10 @@ func runLMStart(cmd *cobra.Command, args []string) error {
 	// Clean up orphaned processes before starting any cameras
 	killOrphanedLMProcesses()
 
+	if err := runCameraServicePreflight(); err != nil {
+		return err
+	}
+
 	switch camera {
 	case 1:
 		return startCamera(1, simPort, trace)
@@ -646,6 +650,10 @@ func runServiceStart(cmd *cobra.Command, args []string) error {
 
 	// Clean up orphaned processes before starting any cameras
 	killOrphanedLMProcesses()
+
+	if err := runCameraServicePreflight(); err != nil {
+		return err
+	}
 
 	// 1. Start broker
 	fmt.Println()

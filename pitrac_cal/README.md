@@ -306,6 +306,13 @@ Determines the focal length and camera mounting angles using a golf ball placed 
 
 **What you need:** A golf ball placed at the calibration position on your rig.
 
+For live camera use, camera 2 extrinsic mode defaults to strobed still capture via
+`pitrac_lm --cam_still_mode` so calibration matches runtime trigger behavior.
+Captured strobed frames are written to:
+`~/LM_Shares/PiTracLogs/log_cam2_cal_YYYYMMDD_HHMMSS_xxx.png` by default.
+Each capture gets a unique timestamped filename (and includes `cal`).
+Use `--no-strobe` to disable this behavior for camera 2.
+
 **Procedure:**
 
 1. Place a golf ball at the calibration position defined in your config (the tool reads the position from `golf_sim_config.json` based on the rig type and camera number).
@@ -317,6 +324,10 @@ Determines the focal length and camera mounting angles using a golf ball placed 
 4. Press **ENTER** to start calibration. The tool auto-captures 6 focal length samples and computes camera angles automatically.
 5. Results are displayed: focal length, yaw, and pitch.
 6. Press **S** to save focal length and camera angles to `golf_sim_config.json`.
+   The save also updates `kExpectedBallRadiusPixelsAt40cmCamera{N}` derived from focal length.
+   On save, the tool logs the exact persisted values for:
+   `kCamera{N}CalibrationMatrix`, `kCamera{N}DistortionVector`,
+   `kCamera{N}FocalLength`, `kCamera{N}Angles`, and `kExpectedBallRadiusPixelsAt40cmCamera{N}`.
 7. Press **Q** to exit.
 
 **Tips for good extrinsic calibration:**
@@ -381,7 +392,8 @@ Press **Q** at the end of intrinsic mode to advance to extrinsic mode.
 ```
 usage: pitrac-cal [-h] [--camera {1,2}] [--mode {intrinsic,extrinsic,full}]
                   [--config CONFIG] [--image-dir IMAGE_DIR]
-                  [--generate-board OUTPUT.png]
+                  [--generate-board OUTPUT.png] [--no-strobe]
+                  [--strobe-output STROBE_OUTPUT]
 ```
 
 | Flag | Default | Description |
@@ -391,6 +403,8 @@ usage: pitrac-cal [-h] [--camera {1,2}] [--mode {intrinsic,extrinsic,full}]
 | `--config` | auto | Path to `golf_sim_config.json` (auto-detected from `PITRAC_ROOT`) |
 | `--image-dir` | none | Load images from a directory instead of live camera |
 | `--generate-board` | none | Generate a printable CharucoBoard PNG and exit |
+| `--no-strobe` | `false` | Disable default strobed still capture for camera 2 live extrinsic mode |
+| `--strobe-output` | `~/LM_Shares/PiTracLogs/log_cam2_cal_YYYYMMDD_HHMMSS_xxx.png` | Output file template for strobed extrinsic captures (timestamp/index appended per capture) |
 
 ## How It Works
 
@@ -584,11 +598,11 @@ Valid focal lengths for PiTrac cameras are typically 2-50mm. If results fall out
 ### Saved values not read by C++ code
 
 Ensure you are editing the same `golf_sim_config.json` that `pitrac_lm` reads. By default:
-- `pitrac-cal` reads from `$PITRAC_ROOT/src/golf_sim_config.json`
-- `pitrac_lm` reads the config specified by `--config_file` or `~/.pitrac/config/golf_sim_config.json`
+- `pitrac-cal` reads from `~/.pitrac/config/golf_sim_config.json` (or explicit `--config`)
+- `pitrac_lm` reads the config specified by `--config_file` (CLI uses `~/.pitrac/config/golf_sim_config.json`)
 
-After calibrating, copy the config if needed:
+Initialize runtime config once on a fresh install:
 
 ```bash
-pitrac-cli config init --force
+pitrac-cli config init
 ```

@@ -211,6 +211,8 @@ func runDoctor() error {
 		results = append(results, rootCheck)
 	}
 
+	results = append(results, cameraDoctorChecks(repoRoot)...)
+
 	printHeader("PiTrac Doctor")
 	fmt.Printf("repo_root: %s\n\n", repoRoot)
 

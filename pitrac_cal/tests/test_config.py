@@ -162,6 +162,34 @@ class TestCameraAngles:
         assert float(angles[1]) == pytest.approx(-26.0)
 
 
+class TestExpectedBallRadius:
+    def test_compute_expected_ball_radius_at_40cm(self):
+        focal = 5.8675451035986486
+        radius_px = config_manager.compute_expected_ball_radius_pixels_at_distance(
+            focal_length_mm=focal,
+            distance_m=0.4,
+        )
+        expected = int(
+            round(
+                (
+                    focal
+                    * constants.BALL_RADIUS_M
+                    * constants.RESOLUTION_X
+                ) / (0.4 * constants.SENSOR_WIDTH_MM)
+            )
+        )
+        assert radius_px == expected
+
+    def test_set_expected_ball_radius_at_40cm_writes_camera_key(self):
+        config = _make_config()
+        value = config_manager.set_expected_ball_radius_pixels_at_40cm(
+            config,
+            camera_num=2,
+            focal_length_mm=5.5,
+        )
+        assert config["gs_config"]["cameras"]["kExpectedBallRadiusPixelsAt40cmCamera2"] == str(value)
+
+
 class TestBallPosition:
     def test_straight_forward_rig(self):
         config = _make_config()

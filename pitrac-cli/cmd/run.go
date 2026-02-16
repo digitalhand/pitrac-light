@@ -107,7 +107,10 @@ func runCalibrateGUI(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("pitrac_cal not found at %s\nEnsure PITRAC_ROOT is correct", pitracCal)
 	}
 
-	configPath := filepath.Join(pitracRoot, "src", "golf_sim_config.json")
+	configPath, err := resolveConfigFile(pitracRoot)
+	if err != nil {
+		return err
+	}
 
 	pyArgs := []string{
 		"-m", "pitrac_cal",

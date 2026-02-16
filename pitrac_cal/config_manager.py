@@ -51,26 +51,18 @@ def _create_backup(path: Path) -> Path:
 def resolve_config_path(explicit: Path | None) -> Path:
     """Resolve the config file path.
 
-    Priority: explicit argument > PITRAC_ROOT/src/golf_sim_config.json.
+    Priority: explicit argument > ~/.pitrac/config/golf_sim_config.json.
     """
     if explicit is not None:
         return explicit.resolve()
 
-    pitrac_root = os.environ.get("PITRAC_ROOT", "")
-    if pitrac_root:
-        candidate = Path(pitrac_root) / "src" / "golf_sim_config.json"
-        if candidate.exists():
-            return candidate.resolve()
-
-    # Walk up from this file to find the repo root
-    here = Path(__file__).resolve().parent
-    for ancestor in [here.parent, here.parent.parent]:
-        candidate = ancestor / "src" / "golf_sim_config.json"
-        if candidate.exists():
-            return candidate.resolve()
+    candidate = Path.home() / ".pitrac" / "config" / "golf_sim_config.json"
+    if candidate.exists():
+        return candidate.resolve()
 
     raise FileNotFoundError(
-        "Cannot find golf_sim_config.json. Set --config or PITRAC_ROOT."
+        "Cannot find runtime golf_sim_config.json at "
+        f"{candidate}. Run 'pitrac-cli config init' or pass --config."
     )
 
 
@@ -139,3 +131,83 @@ def set_distortion_vector(config: dict, camera_num: int, dist_coeffs: np.ndarray
     config["gs_config"]["cameras"][key] = [
         float_to_config_str(float(coeffs[i])) for i in range(5)
     ]
+
+
+def compute_expected_ball_radius_pixels_at_distance(
+    focal_length_mm: float,
+    distance_m: float,
+) -> int:
+    """Compute expected ball radius in pixels for a known camera/ball distance."""
+    radius_px = (
+        focal_length_mm
+        * constants.BALL_RADIUS_M
+        * constants.RESOLUTION_X
+    ) / (distance_m * constants.SENSOR_WIDTH_MM)
+    return int(round(radius_px))
+
+
+def set_expected_ball_radius_pixels_at_40cm(
+    config: dict,
+    camera_num: int,
+    focal_length_mm: float,
+) -> int:
+    """Write kExpectedBallRadiusPixelsAt40cmCamera{N} derived from focal length."""
+    key = f"kExpectedBallRadiusPixelsAt40cmCamera{camera_num}"
+    value = compute_expected_ball_radius_pixels_at_distance(focal_length_mm, 0.4)
+    config["gs_config"]["cameras"][key] = str(value)
+    return value
+
+
+def get_camera_calibration_values(config: dict, camera_num: int) -> dict[str, Any]:
+    """Return camera calibration values currently present in config."""
+    cameras = config.get("gs_config", {}).get("cameras", {})
+    return {
+        f"kCamera{camera_num}CalibrationMatrix": cameras.get(f"kCamera{camera_num}CalibrationMatrix"),
+        f"kCamera{camera_num}DistortionVector": cameras.get(f"kCamera{camera_num}DistortionVector"),
+        f"kCamera{camera_num}FocalLength": cameras.get(f"kCamera{camera_num}FocalLength"),
+        f"kCamera{camera_num}Angles": cameras.get(f"kCamera{camera_num}Angles"),
+        f"kExpectedBallRadiusPixelsAt40cmCamera{camera_num}": cameras.get(
+            f"kExpectedBallRadiusPixelsAt40cmCamera{camera_num}"
+        ),
+    }
+
+
+def get_startup_calibration_coverage(config: dict, camera_num: int) -> list[dict[str, str]]:
+    """Summarize runtime calibration key coverage for pitrac_lm startup.
+
+    These keys are consumed during startup in C++ (camera_hardware.cpp).
+    Missing keys trigger fallback/default behavior at runtime.
+    """
+    values = get_camera_calibration_values(config, camera_num)
+    coverage: list[dict[str, str]] = []
+
+    def _status(value: Any) -> str:
+        return "present" if value is not None else "missing"
+
+    coverage.append({
+        "key": f"gs_config.cameras.kCamera{camera_num}CalibrationMatrix",
+        "status": _status(values[f"kCamera{camera_num}CalibrationMatrix"]),
+        "fallback": "identity matrix + undistortion disabled when missing/invalid",
+    })
+    coverage.append({
+        "key": f"gs_config.cameras.kCamera{camera_num}DistortionVector",
+        "status": _status(values[f"kCamera{camera_num}DistortionVector"]),
+        "fallback": "identity distortion + undistortion disabled when missing/invalid",
+    })
+    coverage.append({
+        "key": f"gs_config.cameras.kCamera{camera_num}FocalLength",
+        "status": _status(values[f"kCamera{camera_num}FocalLength"]),
+        "fallback": "camera-model lens default focal length",
+    })
+    coverage.append({
+        "key": f"gs_config.cameras.kCamera{camera_num}Angles",
+        "status": _status(values[f"kCamera{camera_num}Angles"]),
+        "fallback": "existing in-memory default angles (typically zeros)",
+    })
+    coverage.append({
+        "key": f"gs_config.cameras.kExpectedBallRadiusPixelsAt40cmCamera{camera_num}",
+        "status": _status(values[f"kExpectedBallRadiusPixelsAt40cmCamera{camera_num}"]),
+        "fallback": "camera-model default expected ball radius",
+    })
+
+    return coverage
